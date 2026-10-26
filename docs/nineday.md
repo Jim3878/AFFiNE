@@ -3,12 +3,12 @@
 This branch (`nineday`) carries NineDay Studio's changes on top of an official AFFiNE release.
 It is deployed to our self-hosted AFFiNE; it is not meant for upstream.
 
-|           |                                                                                                            |
-| --------- | ---------------------------------------------------------------------------------------------------------- |
-| Base      | `v0.27.4` (official tag)                                                                                   |
-| Image     | `ghcr.io/jim3878/affine:0.27.4-nineday.<N>`, built by `.github/workflows/nineday-image.yml`                |
-| Changed   | **Web frontend only** (MIT-licensed code: `blocksuite/`, `packages/frontend/`)                             |
-| Unchanged | Backend (`packages/backend`, AFFiNE EE License), admin and mobile frontends: taken from the official image |
+|           |                                                                                                       |
+| --------- | ----------------------------------------------------------------------------------------------------- |
+| Base      | `v0.27.4` (official tag)                                                                              |
+| Image     | `ghcr.io/jim3878/affine:0.27.4-nineday.<N>`, built by `.github/workflows/nineday-image.yml`           |
+| Changed   | **Web and mobile-web frontends only** (MIT-licensed code: `blocksuite/`, `packages/frontend/`)        |
+| Unchanged | Backend (`packages/backend`, AFFiNE EE License) and the admin frontend: taken from the official image |
 
 ## Rules
 
@@ -36,4 +36,13 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
 
 ## Changes
 
-_None yet: the pipeline was set up on 2026-10-26 with an unmodified frontend to prove the image matches upstream._
+- `0.27.4-nineday.1` (2026-10-26): pipeline only, unmodified frontend; verified identical to upstream.
+- **Relation column** (database block, `blocksuite/affine/blocks/database/src/properties/relation/`):
+  - Column type `relation`. A cell stores an array of related doc ids (any non-trashed doc in the
+    workspace, e.g. another database's row pages). JSON/filter value: the doc titles.
+  - Cell shows the docs as chips (click opens the doc); editing opens a searchable doc picker
+    (toggle to add/remove; selected docs listed first).
+  - Converters: Text → Relation takes the `@`-mentioned docs of each cell; Relation → Text writes
+    them back as `@`-mentions, so switching types does not lose data.
+  - Not yet: restricting the picker to one database's rows, two-way relations, rollups.
+  - Official desktop/mobile apps and other clients do not know the `relation` type; use the web app.

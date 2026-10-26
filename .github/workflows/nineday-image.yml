@@ -36,10 +36,20 @@ jobs:
         env:
           BUILD_TYPE: stable
 
-      - name: Strip sourcemaps
+      # The mobile web app (/mobile) renders the same database blocks, so it is rebuilt too.
+      - name: Build mobile web
+        run: yarn affine @affine/mobile build
+        env:
+          BUILD_TYPE: stable
+
+      # Same layout as upstream's image: web at the root, mobile under mobile/ (admin stays upstream's).
+      - name: Assemble static
         run: |
-          find packages/frontend/apps/web/dist -name '*.map' -delete
-          rm -f packages/frontend/apps/web/dist/.gitignore
+          mkdir -p nineday-static/mobile
+          cp -r packages/frontend/apps/web/dist/. nineday-static/
+          cp -r packages/frontend/apps/mobile/dist/. nineday-static/mobile/
+          find nineday-static -name '*.map' -delete
+          find nineday-static -name '.gitignore' -delete
 
       - name: Image tag
         id: tag
@@ -55,7 +65,7 @@ jobs:
 
       - uses: docker/build-push-action@v6
         with:
-          context: packages/frontend/apps/web/dist
+          context: nineday-static
           file: .github/nineday/Dockerfile
           build-args: BASE_IMAGE=ghcr.io/toeverything/affine:${{ env.AFFINE_BASE_VERSION }}
           push: true
