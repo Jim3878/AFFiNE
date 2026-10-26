@@ -10,6 +10,7 @@ import {
   createFromBaseCellRenderer,
   createIcon,
 } from '@blocksuite/data-view';
+import { autoPlacement, offset, shift, size } from '@floating-ui/dom';
 import { signal } from '@preact/signals-core';
 import { html, type PropertyValues } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
@@ -20,6 +21,7 @@ import {
   relationChipStyle,
   relationListStyle,
   relationMissingStyle,
+  relationPickerListStyle,
 } from './cell-renderer-css.js';
 import {
   type RelationPropertyData,
@@ -38,6 +40,22 @@ type PickerMode =
   | { kind: 'rows' }
   | { kind: 'docs' }
   | { kind: 'databases'; docId: string };
+
+/** Like menu.group, but the items scroll inside a capped-height list. */
+const scrollGroup =
+  (items: MenuConfig[]): MenuConfig =>
+  (menu, index) => {
+    const rendered = menu.renderItems(items);
+    if (!rendered.length) return;
+    return html`${
+        index === 0
+          ? ''
+          : html`<div
+              style="height: 0.5px;background-color: var(--affine-divider-color);margin: 4px 0"
+            ></div>`
+      }
+      <div class="${relationPickerListStyle}">${rendered}</div>`;
+  };
 
 type Chip = {
   key: string;
@@ -150,9 +168,8 @@ export class RelationCell extends BaseCellRenderer<
         .filter(d => !d.trash)
         .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
       return [
-        menu.group({
-          name: 'Choose the doc that holds the database to relate to',
-          items: docs.map(doc =>
+        scrollGroup(
+          docs.map(doc =>
             menu.action({
               name: doc.title || 'Untitled',
               closeOnSelect: false,
@@ -160,8 +177,8 @@ export class RelationCell extends BaseCellRenderer<
                 this.chooseDoc(doc.id);
               },
             })
-          ),
-        }),
+          )
+        ),
       ];
     }
 
@@ -195,9 +212,8 @@ export class RelationCell extends BaseCellRenderer<
         ];
       }
       return [
-        menu.group({
-          name: 'Choose a database',
-          items: databases.map(db =>
+        scrollGroup(
+          databases.map(db =>
             menu.action({
               name: db.title || 'Untitled database',
               closeOnSelect: false,
@@ -205,8 +221,8 @@ export class RelationCell extends BaseCellRenderer<
                 this.setTarget({ docId: mode.docId, blockId: db.blockId });
               },
             })
-          ),
-        }),
+          )
+        ),
         back,
       ];
     }
@@ -241,8 +257,8 @@ export class RelationCell extends BaseCellRenderer<
     );
     return [
       header,
-      menu.group({
-        items: rows.map(row =>
+      scrollGroup(
+        rows.map(row =>
           menu.action({
             name: row.title,
             isSelected: selected.has(row.id),
@@ -251,8 +267,8 @@ export class RelationCell extends BaseCellRenderer<
               this.toggleRow(row.id);
             },
           })
-        ),
-      }),
+        )
+      ),
     ];
   }
 
@@ -260,6 +276,35 @@ export class RelationCell extends BaseCellRenderer<
     if (!this.std) return;
     this.mode$.value = { kind: 'rows' };
     const handler = popMenu(popupTargetFromElement(this), {
+      // popMenu's default placement, plus size(): keep the whole menu inside
+      // the viewport by shrinking the scrollable list to the space left.
+      middleware: [
+        autoPlacement({
+          allowedPlacements: [
+            'bottom-start',
+            'bottom-end',
+            'top-start',
+            'top-end',
+          ],
+        }),
+        offset(4),
+        shift({ padding: 8 }),
+        size({
+          padding: 8,
+          apply({ availableHeight, elements }) {
+            const menu = elements.floating;
+            const list = menu.querySelector(`.${relationPickerListStyle}`);
+            const rest =
+              list instanceof HTMLElement
+                ? menu.offsetHeight - list.offsetHeight
+                : 0;
+            menu.style.setProperty(
+              '--relation-picker-max-height',
+              `${Math.max(120, availableHeight - rest)}px`
+            );
+          },
+        }),
+      ],
       options: {
         search: { placeholder: 'Search' },
         onClose: () => {

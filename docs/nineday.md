@@ -55,6 +55,10 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
     `@`-mentions.
   - v1 (`nineday.2`) forgot `customElements.define('affine-database-relation-cell', …)` in
     `effects.ts`, so the cell threw "Illegal constructor" and never rendered.
+  - The picker's lists scroll (`nineday.4`): the shared context menu caps its height at 700px but
+    its body does not scroll, so long row lists spilled out of the menu. The relation picker wraps its
+    lists in its own scroll container, and a floating-ui `size()` middleware shrinks it to the space
+    left on screen.
   - Not yet: two-way relations, rollups/formulas.
   - Official desktop/mobile apps and other clients do not know the `relation` type; use the web app.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`

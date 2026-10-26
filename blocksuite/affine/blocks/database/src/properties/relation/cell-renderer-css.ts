@@ -43,3 +43,16 @@ export const relationMissingStyle = css({
     background: 'var(--affine-hover-color)',
   },
 });
+
+/**
+ * Scrollable list inside the picker menu: the shared menu caps its own height
+ * (700px) but its body does not scroll, so long lists would spill out of it.
+ */
+export const relationPickerListStyle = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+  // The picker's size() middleware sets the variable to the space left on screen.
+  maxHeight: 'min(360px, var(--relation-picker-max-height, 360px))',
+  overflowY: 'auto',
+});
