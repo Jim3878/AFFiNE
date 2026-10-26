@@ -29,10 +29,9 @@ export const relationChipStyle = css({
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   cursor: 'pointer',
-  textDecoration: 'underline',
-  textDecorationColor: 'var(--affine-divider-color)',
+  border: '1px solid var(--affine-border-color)',
   ':hover': {
-    textDecorationColor: 'var(--affine-icon-color)',
+    background: 'var(--affine-hover-color-filled)',
   },
 });
 
@@ -40,4 +39,7 @@ export const relationMissingStyle = css({
   color: 'var(--affine-text-disable-color)',
   cursor: 'default',
   textDecoration: 'line-through',
+  ':hover': {
+    background: 'var(--affine-hover-color)',
+  },
 });

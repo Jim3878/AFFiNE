@@ -37,12 +37,26 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
 ## Changes
 
 - `0.27.4-nineday.1` (2026-10-26): pipeline only, unmodified frontend; verified identical to upstream.
-- **Relation column** (database block, `blocksuite/affine/blocks/database/src/properties/relation/`):
-  - Column type `relation`. A cell stores an array of related doc ids (any non-trashed doc in the
-    workspace, e.g. another database's row pages). JSON/filter value: the doc titles.
-  - Cell shows the docs as chips (click opens the doc); editing opens a searchable doc picker
-    (toggle to add/remove; selected docs listed first).
-  - Converters: Text → Relation takes the `@`-mentioned docs of each cell; Relation → Text writes
-    them back as `@`-mentions, so switching types does not lose data.
-  - Not yet: restricting the picker to one database's rows, two-way relations, rollups.
+- **Relation column** (database block, `blocksuite/affine/blocks/database/src/properties/relation/`),
+  Notion-style:
+  - Column type `relation`. Column data `target: { docId, blockId }` = the related database (any
+    database block in any doc). A cell stores the related **row ids** of that database.
+  - Picker (searchable popup menu, opened like select cells: select the cell, then Enter/click):
+    with no target it first lists docs → the doc's databases (auto-picked when there is one);
+    then it lists the target's rows to toggle (stays open), with a "Related: … / Change" entry.
+  - Cells render rows as tag-like chips; click opens the row's doc (rows whose title links a doc,
+    i.e. imported Notion row pages) or else the database's doc.
+  - Other docs are read through a readonly `Store` loaded on demand (`target.ts`, cached per
+    workspace); `relationStoreTick` re-renders cells/pickers when that data arrives.
+  - Entries that are doc ids (v1 values, Text → Relation conversion of `@`-mentions) resolve to the
+    row whose title links that doc, and are rewritten as row ids on the next edit. Without a
+    target, entries are shown as docs.
+  - Converters: Text → Relation keeps `@`-mentioned docs; Relation → Text writes doc ids back as
+    `@`-mentions.
+  - v1 (`nineday.2`) forgot `customElements.define('affine-database-relation-cell', …)` in
+    `effects.ts`, so the cell threw "Illegal constructor" and never rendered.
+  - Not yet: two-way relations, rollups/formulas.
   - Official desktop/mobile apps and other clients do not know the `relation` type; use the web app.
+- Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
+  to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
+  `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.

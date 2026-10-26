@@ -1,5 +1,6 @@
 import {
   menu,
+  type MenuConfig,
   popMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
@@ -9,6 +10,7 @@ import {
   createFromBaseCellRenderer,
   createIcon,
 } from '@blocksuite/data-view';
+import { signal } from '@preact/signals-core';
 import { html, type PropertyValues } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 
@@ -19,10 +21,39 @@ import {
   relationListStyle,
   relationMissingStyle,
 } from './cell-renderer-css.js';
-import { relationPropertyModelConfig } from './define.js';
+import {
+  type RelationPropertyData,
+  relationPropertyModelConfig,
+} from './define.js';
+import {
+  databaseTitle,
+  listDatabases,
+  listRows,
+  relationStoreTick,
+  type RelationTarget,
+  resolveEntry,
+} from './target.js';
 
-export class RelationCell extends BaseCellRenderer<string[], string[]> {
+type PickerMode =
+  | { kind: 'rows' }
+  | { kind: 'docs' }
+  | { kind: 'databases'; docId: string };
+
+type Chip = {
+  key: string;
+  title: string;
+  openDocId?: string;
+  missing?: boolean;
+};
+
+export class RelationCell extends BaseCellRenderer<
+  string[],
+  string[],
+  RelationPropertyData
+> {
   private closePicker?: () => void;
+
+  private readonly mode$ = signal<PickerMode>({ kind: 'rows' });
 
   protected override firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
@@ -33,62 +64,209 @@ export class RelationCell extends BaseCellRenderer<string[], string[]> {
     return this.view.serviceGet(EditorHostKey)?.std;
   }
 
-  private titleOf(id: string): string | undefined {
-    const meta = this.std?.workspace.meta.getDocMeta(id);
-    if (!meta || meta.trash) return undefined;
-    return meta.title || 'Untitled';
+  private get target(): RelationTarget | undefined {
+    return this.property.data$.value.target;
   }
 
-  private readonly openDoc = (e: MouseEvent, id: string) => {
+  private chips(): Chip[] {
+    const std = this.std;
+    const entries = this.value ?? [];
+    if (!std) return [];
+    const target = this.target;
+    if (!target) {
+      // No related database yet: entries are docs (Text -> Relation, first version).
+      return entries.map(id => {
+        const meta = std.workspace.meta.getDocMeta(id);
+        return meta && !meta.trash
+          ? { key: id, title: meta.title || 'Untitled', openDocId: id }
+          : { key: id, title: 'Deleted', missing: true };
+      });
+    }
+    const rows = listRows(std, target);
+    if (!rows) {
+      return entries.map(id => ({ key: id, title: '…' }));
+    }
+    return entries.map(entry => {
+      const row = resolveEntry(rows, entry);
+      return row
+        ? {
+            key: entry,
+            title: row.title,
+            openDocId: row.docId ?? target.docId,
+          }
+        : { key: entry, title: 'Deleted', missing: true };
+    });
+  }
+
+  private readonly openDoc = (e: MouseEvent, docId?: string) => {
     e.stopPropagation();
     const std = this.std;
-    if (!std || !this.titleOf(id)) return;
+    if (!std || !docId) return;
     std.getOptional(RefNodeSlotsProvider)?.docLinkClicked.next({
-      pageId: id,
+      pageId: docId,
       host: std.host,
     });
   };
 
-  private toggle(id: string) {
-    const current = this.value ?? [];
-    this.valueSetImmediate(
-      current.includes(id) ? current.filter(v => v !== id) : [...current, id]
+  private setTarget(target: RelationTarget) {
+    this.property.dataUpdate(data => ({ ...data, target }));
+    this.mode$.value = { kind: 'rows' };
+  }
+
+  private chooseDoc(docId: string) {
+    const std = this.std;
+    if (!std) return;
+    const databases = listDatabases(std, docId);
+    const only = databases?.length === 1 ? databases[0] : undefined;
+    if (only) {
+      this.setTarget({ docId, blockId: only.blockId });
+    } else {
+      this.mode$.value = { kind: 'databases', docId };
+    }
+  }
+
+  private toggleRow(rowId: string) {
+    const std = this.std;
+    const target = this.target;
+    if (!std || !target) return;
+    const rows = listRows(std, target) ?? [];
+    // Normalize doc-id entries to row ids while we are rewriting the value.
+    const current = (this.value ?? []).map(e => resolveEntry(rows, e)?.id ?? e);
+    const next = current.includes(rowId)
+      ? current.filter(v => v !== rowId)
+      : [...current, rowId];
+    this.valueSetImmediate([...new Set(next)]);
+  }
+
+  private pickerItems(): MenuConfig[] {
+    const std = this.std;
+    if (!std) return [];
+    void relationStoreTick.value;
+    const mode = this.mode$.value;
+    const target = this.target;
+
+    if (mode.kind === 'docs' || !target) {
+      const docs = std.workspace.meta.docMetas
+        .filter(d => !d.trash)
+        .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      return [
+        menu.group({
+          name: 'Choose the doc that holds the database to relate to',
+          items: docs.map(doc =>
+            menu.action({
+              name: doc.title || 'Untitled',
+              closeOnSelect: false,
+              select: () => {
+                this.chooseDoc(doc.id);
+              },
+            })
+          ),
+        }),
+      ];
+    }
+
+    if (mode.kind === 'databases') {
+      const back = menu.action({
+        name: 'Back',
+        closeOnSelect: false,
+        select: () => {
+          this.mode$.value = { kind: 'docs' };
+        },
+      });
+      const databases = listDatabases(std, mode.docId);
+      if (!databases) {
+        return [
+          menu.action({
+            name: 'Loading…',
+            closeOnSelect: false,
+            select: () => {},
+          }),
+          back,
+        ];
+      }
+      if (databases.length === 0) {
+        return [
+          menu.action({
+            name: 'This doc has no database',
+            closeOnSelect: false,
+            select: () => {},
+          }),
+          back,
+        ];
+      }
+      return [
+        menu.group({
+          name: 'Choose a database',
+          items: databases.map(db =>
+            menu.action({
+              name: db.title || 'Untitled database',
+              closeOnSelect: false,
+              select: () => {
+                this.setTarget({ docId: mode.docId, blockId: db.blockId });
+              },
+            })
+          ),
+        }),
+        back,
+      ];
+    }
+
+    const header = menu.group({
+      items: [
+        menu.action({
+          name: `Related: ${databaseTitle(std, target)}`,
+          postfix: html`<span style="color: var(--affine-text-secondary-color)"
+            >Change</span
+          >`,
+          closeOnSelect: false,
+          select: () => {
+            this.mode$.value = { kind: 'docs' };
+          },
+        }),
+      ],
+    });
+    const rows = listRows(std, target);
+    if (!rows) {
+      return [
+        header,
+        menu.action({
+          name: 'Loading…',
+          closeOnSelect: false,
+          select: () => {},
+        }),
+      ];
+    }
+    const selected = new Set(
+      (this.value ?? []).map(e => resolveEntry(rows, e)?.id ?? e)
     );
+    return [
+      header,
+      menu.group({
+        items: rows.map(row =>
+          menu.action({
+            name: row.title,
+            isSelected: selected.has(row.id),
+            closeOnSelect: false,
+            select: () => {
+              this.toggleRow(row.id);
+            },
+          })
+        ),
+      }),
+    ];
   }
 
   private popPicker() {
-    const std = this.std;
-    if (!std) return;
+    if (!this.std) return;
+    this.mode$.value = { kind: 'rows' };
     const handler = popMenu(popupTargetFromElement(this), {
       options: {
-        search: { placeholder: 'Search docs' },
+        search: { placeholder: 'Search' },
         onClose: () => {
           this.closePicker = undefined;
           this.selectCurrentCell(false);
         },
-        items: [
-          menu.dynamic(() => {
-            // Reads this.value (a signal), so the list re-renders on every toggle.
-            const selected = new Set(this.value ?? []);
-            const docs = std.workspace.meta.docMetas
-              .filter(d => !d.trash)
-              .sort(
-                (a, b) =>
-                  Number(selected.has(b.id)) - Number(selected.has(a.id)) ||
-                  (a.title || '').localeCompare(b.title || '')
-              );
-            return docs.map(doc =>
-              menu.action({
-                name: doc.title || 'Untitled',
-                isSelected: selected.has(doc.id),
-                closeOnSelect: false,
-                select: () => {
-                  this.toggle(doc.id);
-                },
-              })
-            );
-          }),
-        ],
+        items: [menu.dynamic(() => this.pickerItems())],
       },
     });
     this.closePicker = handler.close;
@@ -108,24 +286,22 @@ export class RelationCell extends BaseCellRenderer<string[], string[]> {
   }
 
   override render() {
-    const ids = this.value ?? [];
+    void relationStoreTick.value;
     return html`<div class="${relationListStyle}">
       ${repeat(
-        ids,
-        id => id,
-        id => {
-          const title = this.titleOf(id);
-          return title
-            ? html`<span
+        this.chips(),
+        chip => chip.key,
+        chip =>
+          chip.missing
+            ? html`<span class="${relationChipStyle} ${relationMissingStyle}"
+                >${chip.title}</span
+              >`
+            : html`<span
                 class="${relationChipStyle}"
                 data-testid="relation-chip"
-                @click="${(e: MouseEvent) => this.openDoc(e, id)}"
-                >${title}</span
+                @click="${(e: MouseEvent) => this.openDoc(e, chip.openDocId)}"
+                >${chip.title}</span
               >`
-            : html`<span class="${relationChipStyle} ${relationMissingStyle}"
-                >Deleted doc</span
-              >`;
-        }
       )}
     </div>`;
   }
