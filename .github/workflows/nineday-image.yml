@@ -1,0 +1,67 @@
+name: NineDay Image
+
+# Builds the web frontend from this branch and publishes
+# ghcr.io/<owner>/affine:<AFFINE_BASE_VERSION>-nineday.<run number>
+# on top of the official image (backend unchanged). See docs/nineday.md.
+on:
+  push:
+    branches: [nineday]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  AFFINE_BASE_VERSION: 0.27.4
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+        with:
+          electron-install: false
+
+      # Same as upstream CI: the tag's package.json says 0.27.0 and CI stamps the release version,
+      # which the client reports to the server's version check.
+      - name: Set version
+        run: ./scripts/set-version.sh "$AFFINE_BASE_VERSION"
+
+      - name: Build web
+        run: yarn affine @affine/web build
+        env:
+          BUILD_TYPE: stable
+
+      - name: Strip sourcemaps
+        run: |
+          find packages/frontend/apps/web/dist -name '*.map' -delete
+          rm -f packages/frontend/apps/web/dist/.gitignore
+
+      - name: Image tag
+        id: tag
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "image=ghcr.io/${owner}/affine:${AFFINE_BASE_VERSION}-nineday.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: packages/frontend/apps/web/dist
+          file: .github/nineday/Dockerfile
+          build-args: BASE_IMAGE=ghcr.io/toeverything/affine:${{ env.AFFINE_BASE_VERSION }}
+          push: true
+          tags: ${{ steps.tag.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Summary
+        run: echo "Published \`${{ steps.tag.outputs.image }}\` from ${GITHUB_SHA::9}" >> "$GITHUB_STEP_SUMMARY"
