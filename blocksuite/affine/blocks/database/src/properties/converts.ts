@@ -7,8 +7,10 @@ import { presetPropertyConverts } from '@blocksuite/data-view/property-presets';
 import { propertyModelPresets } from '@blocksuite/data-view/property-pure-presets';
 import { clamp } from '@blocksuite/global/gfx';
 import { nanoid, Text } from '@blocksuite/store';
+import * as Y from 'yjs';
 
-import { richTextPropertyModelConfig } from './rich-text/define.js';
+import { relationPropertyModelConfig } from './relation/define.js';
+import { richTextPropertyModelConfig, toYText } from './rich-text/define.js';
 
 export const databasePropertyConverts = [
   ...presetPropertyConverts,
@@ -172,5 +174,50 @@ export const databasePropertyConverts = [
         cells: cells.map(v => new Text(v ? optionMap[v]?.value : '').yText),
       };
     }
+  ),
+  // NineDay: Text -> Relation keeps the docs @-mentioned in each cell.
+  createPropertyConvert(
+    richTextPropertyModelConfig,
+    relationPropertyModelConfig,
+    (_property, cells) => ({
+      property: {},
+      cells: cells.map(v => {
+        const ids: string[] = [];
+        for (const delta of toYText(v)?.toDelta() ?? []) {
+          const ref = delta.attributes?.reference;
+          if (
+            ref?.type === 'LinkedPage' &&
+            ref.pageId &&
+            !ids.includes(ref.pageId)
+          ) {
+            ids.push(ref.pageId);
+          }
+        }
+        return ids;
+      }),
+    })
+  ),
+  // NineDay: Relation -> Text writes the related docs back as @-mentions.
+  createPropertyConvert(
+    relationPropertyModelConfig,
+    richTextPropertyModelConfig,
+    (_property, cells) => ({
+      property: {},
+      cells: cells.map(ids => {
+        if (!ids?.length) return undefined;
+        // Text's constructor only types basic marks, so build the Y.Text directly.
+        const yText = new Y.Text();
+        yText.applyDelta(
+          ids.flatMap((pageId, i) => [
+            ...(i ? [{ insert: ', ' }] : []),
+            {
+              insert: ' ',
+              attributes: { reference: { type: 'LinkedPage', pageId } },
+            },
+          ])
+        );
+        return yText;
+      }),
+    })
   ),
 ];
