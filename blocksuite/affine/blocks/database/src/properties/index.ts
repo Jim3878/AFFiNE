@@ -1,6 +1,7 @@
 import { propertyPresets } from '@blocksuite/data-view/property-presets';
 
 import { createdTimeColumnConfig } from './created-time/cell-renderer.js';
+import { formulaColumnConfig } from './formula/cell-renderer.js';
 import { linkColumnConfig } from './link/cell-renderer.js';
 import { relationColumnConfig } from './relation/cell-renderer.js';
 import { richTextColumnConfig } from './rich-text/cell-renderer.js';
@@ -25,6 +26,7 @@ export const databaseBlockProperties = {
   imageColumnConfig: propertyPresets.imagePropertyConfig,
   linkColumnConfig,
   relationColumnConfig,
+  formulaColumnConfig,
   richTextColumnConfig,
   titleColumnConfig,
   createdTimeColumnConfig,

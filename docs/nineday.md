@@ -61,6 +61,20 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
     left on screen.
   - Not yet: two-way relations, rollups/formulas.
   - Official desktop/mobile apps and other clients do not know the `relation` type; use the web app.
+- **Formula column** (`blocksuite/affine/blocks/database/src/properties/formula/`), Notion syntax:
+  - Column type `formula`, data `{ expression, resultType }`. Values are computed on every read as a
+    "spacial property" of the data source (like Created Time) and never stored; `resultType`
+    (number/text/boolean/date/list, found from the rows when the formula is saved) drives sort/filter.
+  - `parser.ts` (tokenizer + precedence parser; `a.f(b)` = `f(a, b)`; `“…”` quotes accepted),
+    `evaluate.ts` (operators and functions: math, `if`/`ifs`/`and`/`or`/`not`/`empty`, text,
+    lists with `map`/`filter`/`find`/`some`/`every` binding `current`/`index`, dates, `let`/`lets`),
+    `compute.ts` (reads cells by property name: select → option name, relation → rows,
+    nested formulas with a self-reference check).
+  - Rollups go through relation columns: `prop("Items").map(current.prop("Price")).sum()`; the rows
+    of another doc's database are read through the readonly stores in `relation/target.ts`.
+  - Editing: select a formula cell and press Enter/click → popup editor with a live preview for
+    that row, clickable property names, Enter saves, Shift+Enter new line, Esc cancels.
+  - The built-in title property is `prop("Title")` when it is not a named column.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.

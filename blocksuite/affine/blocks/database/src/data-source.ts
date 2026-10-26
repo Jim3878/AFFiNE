@@ -29,6 +29,10 @@ import { computed, type ReadonlySignal, signal } from '@preact/signals-core';
 
 import { getIcon } from './block-icons.js';
 import {
+  computeFormula,
+  type FormulaResult,
+} from './properties/formula/compute.js';
+import {
   databaseBlockProperties,
   databasePropertyConverts,
 } from './properties/index.js';
@@ -92,6 +96,11 @@ export class DatabaseBlockDataSource extends DataSourceBase {
         return getIcon(model);
       },
     },
+    formula: {
+      valueSet: () => {},
+      valueGet: (rowId: string, propertyId: string) =>
+        this.formulaPreview(rowId, propertyId),
+    },
     title: {
       valueSet: () => {},
       valueGet: (rowId: string) => {
@@ -103,6 +112,21 @@ export class DatabaseBlockDataSource extends DataSourceBase {
       },
     },
   };
+
+  /** Computes a formula column for a row (its own formula, or `expression`). */
+  formulaPreview(
+    rowId: string,
+    columnId: string,
+    expression?: string
+  ): FormulaResult {
+    return computeFormula(
+      { workspace: this._model.store.workspace },
+      this._model,
+      rowId,
+      columnId,
+      expression
+    );
+  }
 
   isSpacialProperty(propertyType: string): boolean {
     return this.spacialProperties[propertyType] !== undefined;

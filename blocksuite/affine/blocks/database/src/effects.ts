@@ -5,6 +5,8 @@ import { DatabaseDndPreviewBlockComponent } from './database-dnd-preview-block';
 import { BlockRenderer } from './detail-panel/block-renderer';
 import { NoteRenderer } from './detail-panel/note-renderer';
 import { CreatedTimeCell } from './properties/created-time/cell-renderer';
+import { FormulaCell } from './properties/formula/cell-renderer';
+import { FormulaEditor } from './properties/formula/editor';
 import { LinkCell } from './properties/link/cell-renderer';
 import { RelationCell } from './properties/relation/cell-renderer';
 import { RichTextCell } from './properties/rich-text/cell-renderer';
@@ -16,6 +18,8 @@ export function effects() {
   customElements.define('data-view-header-area-icon', IconCell);
   customElements.define('affine-database-link-cell', LinkCell);
   customElements.define('affine-database-relation-cell', RelationCell);
+  customElements.define('affine-database-formula-cell', FormulaCell);
+  customElements.define('affine-database-formula-editor', FormulaEditor);
   customElements.define('data-view-header-area-text', HeaderAreaTextCell);
   customElements.define('affine-database-rich-text-cell', RichTextCell);
   customElements.define('affine-database-created-time-cell', CreatedTimeCell);

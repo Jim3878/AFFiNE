@@ -4,6 +4,9 @@ import { signal } from '@preact/signals-core';
 
 import { isLinkedDoc } from '../../utils/title-doc.js';
 
+/** Anything that gives access to the workspace (a BlockStdScope, or `{ workspace }`). */
+export type WorkspaceHolder = Pick<BlockStdScope, 'workspace'>;
+
 /** The database a relation column points at: a database block in some doc. */
 export type RelationTarget = { docId: string; blockId: string };
 
@@ -25,7 +28,7 @@ const stores = new WeakMap<object, Map<string, Store>>();
 
 /** Readonly store of another doc, loaded on demand and cached per workspace. */
 export function getStoreOf(
-  std: BlockStdScope,
+  std: WorkspaceHolder,
   docId: string
 ): Store | undefined {
   const workspace = std.workspace;
@@ -53,7 +56,7 @@ export function getStoreOf(
 }
 
 /** Plain text of a title, with linked docs shown by their titles. */
-export function textTitle(std: BlockStdScope, text?: Text): string {
+export function textTitle(std: WorkspaceHolder, text?: Text): string {
   if (!text) return '';
   return text.deltas$.value
     .map(delta =>
@@ -74,7 +77,7 @@ function linkedDocOf(text?: Text): string | undefined {
 
 /** Database blocks in a doc (undefined while the doc is still loading). */
 export function listDatabases(
-  std: BlockStdScope,
+  std: WorkspaceHolder,
   docId: string
 ): { blockId: string; title: string }[] | undefined {
   const store = getStoreOf(std, docId);
@@ -87,7 +90,7 @@ export function listDatabases(
 
 /** Rows of the target database (undefined while loading or if it is gone). */
 export function listRows(
-  std: BlockStdScope,
+  std: WorkspaceHolder,
   target: RelationTarget
 ): RelationRow[] | undefined {
   // Read the tick so callers inside computed()/render re-run when data arrives.
@@ -107,7 +110,7 @@ export function listRows(
 }
 
 export function databaseTitle(
-  std: BlockStdScope,
+  std: WorkspaceHolder,
   target: RelationTarget
 ): string {
   const docTitle = std.workspace.meta.getDocMeta(target.docId)?.title;
