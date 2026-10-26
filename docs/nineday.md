@@ -75,6 +75,8 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   - Editing: select a formula cell and press Enter/click → popup editor with a live preview for
     that row, clickable property names, Enter saves, Shift+Enter new line, Esc cancels.
   - The built-in title property is `prop("Title")` when it is not a named column.
+  - User guide (Traditional Chinese): `docs/formula.md`, linked from the editor ("語法說明") via
+    its GitHub URL on the `nineday` branch, so the guide can change without rebuilding the image.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.

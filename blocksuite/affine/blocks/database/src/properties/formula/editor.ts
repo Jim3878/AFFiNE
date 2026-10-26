@@ -4,6 +4,10 @@ import { repeat } from 'lit/directives/repeat.js';
 
 import { type FormulaResult, formulaResultText } from './compute.js';
 
+/** Syntax guide (Traditional Chinese), kept in the fork so it can change without a rebuild. */
+const FORMULA_GUIDE_URL =
+  'https://github.com/Jim3878/AFFiNE/blob/nineday/docs/formula.md';
+
 /** Popup for writing a column's formula, with a live preview for one row. */
 export class FormulaEditor extends LitElement {
   static override styles = css`
@@ -24,8 +28,21 @@ export class FormulaEditor extends LitElement {
       font-family: var(--affine-font-family);
       font-size: 14px;
     }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
     .title {
       font-weight: 600;
+    }
+    .guide {
+      font-size: 12px;
+      color: var(--affine-primary-color);
+      text-decoration: none;
+    }
+    .guide:hover {
+      text-decoration: underline;
     }
     textarea {
       box-sizing: border-box;
@@ -184,7 +201,16 @@ export class FormulaEditor extends LitElement {
     const isError = result.type === 'error';
     const text = isError ? result.message : formulaResultText(result);
     return html`
-      <div class="title">Formula</div>
+      <div class="header">
+        <div class="title">Formula</div>
+        <a
+          class="guide"
+          href=${FORMULA_GUIDE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          >語法說明 ↗</a
+        >
+      </div>
       <textarea
         spellcheck="false"
         placeholder='prop("Price") * prop("Qty")'
