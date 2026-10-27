@@ -56,14 +56,13 @@ export class MenuSubMenu extends MenuFocusable {
     `,
   ];
 
-  createTime = 0;
+  /** The submenu this item opened, while it is open. */
+  private opened?: Menu;
 
+  // NineDay: submenus open on click (click again to close) instead of on hover,
+  // so they do not vanish when the pointer wanders off them.
   override connectedCallback() {
     super.connectedCallback();
-    this.createTime = Date.now();
-    if (this.data.openOnHover !== false) {
-      this.disposables.addFromEvent(this, 'mouseenter', this.onMouseEnter);
-    }
     this.disposables.addFromEvent(this, 'click', e => {
       e.preventDefault();
       e.stopPropagation();
@@ -72,20 +71,16 @@ export class MenuSubMenu extends MenuFocusable {
         if (this.data.closeOnSelect !== false) {
           this.menu.close();
         }
+      } else if (this.opened) {
+        this.menu.closeSubMenu();
       } else {
         this.openSubMenu();
       }
     });
   }
 
-  onMouseEnter() {
-    if (Date.now() - this.createTime > 100) {
-      this.openSubMenu();
-    }
-  }
-
   override onPressEnter() {
-    this.onMouseEnter();
+    if (!this.opened) this.openSubMenu();
   }
 
   openSubMenu() {
@@ -100,6 +95,7 @@ export class MenuSubMenu extends MenuFocusable {
           },
           onClose: () => {
             menu.menuElement.remove();
+            this.opened = undefined;
             this.data.options.onClose?.();
           },
         },
@@ -111,6 +107,7 @@ export class MenuSubMenu extends MenuFocusable {
       }
       menu.menuElement.style.minWidth = '200px';
       this.menu.openSubMenu(menu);
+      this.opened = menu;
       return;
     }
 
@@ -124,6 +121,7 @@ export class MenuSubMenu extends MenuFocusable {
       },
       onClose: () => {
         menu.menuElement.remove();
+        this.opened = undefined;
         this.menu.focusTo(focus);
         this.data.options.onClose?.();
         unsub();
@@ -146,6 +144,7 @@ export class MenuSubMenu extends MenuFocusable {
         .catch(err => console.error(err));
     });
     this.menu.openSubMenu(menu);
+    this.opened = menu;
     // in case that the menu is not closed, but the component is removed,
     this.disposables.add(unsub);
   }

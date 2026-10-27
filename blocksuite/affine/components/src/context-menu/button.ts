@@ -68,9 +68,10 @@ export class MenuButton extends MenuFocusable {
 
   override connectedCallback() {
     super.connectedCallback();
+    // NineDay: an open submenu stays open while hovering other items; it closes
+    // on a click elsewhere in the menu (see MenuComponent._clickContainer).
     this.disposables.addFromEvent(this, 'mouseenter', () => {
       this.data.onHover?.(true);
-      this.menu.closeSubMenu();
     });
     this.disposables.addFromEvent(this, 'mouseleave', () => {
       this.data.onHover?.(false);

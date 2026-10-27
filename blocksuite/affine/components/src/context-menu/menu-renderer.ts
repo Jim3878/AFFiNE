@@ -213,7 +213,6 @@ export class MenuComponent
     return html`
       <div
         style="display:flex;align-items:center;gap: 4px;padding:3px 4px 3px 2px"
-        @mouseenter="${() => this.menu.closeSubMenu()}"
       >
         ${
           title.onBack

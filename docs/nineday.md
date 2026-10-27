@@ -90,6 +90,9 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   lets a property type add items to its column header menu; wired into the table header (pc and
   pc-virtual), mobile table header and the row detail panel via `typeMenuConfig()` in
   `core/common/property-menu.ts`. Used by Relation and Formula ("Edit formula").
+- **Submenus open on click** (`components/src/context-menu`, `nineday.8`): context-menu submenus
+  (Type, Related database, Number Format, …) no longer open on hover or close when the pointer
+  moves to another item; click opens/closes them, a click elsewhere in the menu closes them.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.
