@@ -21,7 +21,11 @@ import { property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { html } from 'lit/static-html.js';
 
-import { inputConfig, typeConfig } from '../../../core/common/property-menu.js';
+import {
+  inputConfig,
+  typeConfig,
+  typeMenuConfig,
+} from '../../../core/common/property-menu.js';
 import type { Property } from '../../../core/view-manager/property.js';
 import { numberFormats } from '../../../property-presets/number/utils/formats.js';
 import { DEFAULT_COLUMN_TITLE_HEIGHT } from '../consts.js';
@@ -64,7 +68,8 @@ export class MobileTableColumnHeader extends SignalWatcher(
   };
 
   private popMenu(ele?: HTMLElement) {
-    popMenu(popupTargetFromElement(ele ?? this), {
+    const target = popupTargetFromElement(ele ?? this);
+    popMenu(target, {
       options: {
         title: {
           text: 'Property settings',
@@ -72,6 +77,7 @@ export class MobileTableColumnHeader extends SignalWatcher(
         items: [
           inputConfig(this.column),
           typeConfig(this.column),
+          ...typeMenuConfig(this.column, target),
           // Number format begin
           menu.subMenu({
             name: 'Number Format',

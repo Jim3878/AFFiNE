@@ -1,4 +1,8 @@
-import { menu } from '@blocksuite/affine-components/context-menu';
+import {
+  menu,
+  type MenuConfig,
+  type PopupTarget,
+} from '@blocksuite/affine-components/context-menu';
 import { html } from 'lit/static-html.js';
 
 import { renderUniLit } from '../utils/uni-component/index.js';
@@ -18,6 +22,14 @@ export const inputConfig = (property: Property) => {
     },
   });
 };
+/** The menu items a property type adds to its own property menu (`Renderer.headerMenu`). */
+export const typeMenuConfig = (
+  property: Property,
+  target: PopupTarget
+): MenuConfig[] => {
+  return property.meta$.value?.renderer.headerMenu?.(property, target) ?? [];
+};
+
 export const typeConfig = (property: Property) => {
   return menu.group({
     items: [

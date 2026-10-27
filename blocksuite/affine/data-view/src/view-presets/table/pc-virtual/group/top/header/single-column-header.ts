@@ -28,6 +28,7 @@ import { renderUniLit } from '../../../../../../core';
 import {
   inputConfig,
   typeConfig,
+  typeMenuConfig,
 } from '../../../../../../core/common/property-menu';
 import { filterTraitKey } from '../../../../../../core/filter/trait';
 import { firstFilterByRef } from '../../../../../../core/filter/utils';
@@ -205,11 +206,13 @@ export class DatabaseHeaderColumn extends SignalWatcher(
   }
 
   private popMenu(ele?: HTMLElement) {
-    popMenu(popupTargetFromElement(ele ?? this), {
+    const target = popupTargetFromElement(ele ?? this);
+    popMenu(target, {
       options: {
         items: [
           inputConfig(this.column),
           typeConfig(this.column),
+          ...typeMenuConfig(this.column, target),
           // Number format begin
           menu.subMenu({
             name: 'Number Format',

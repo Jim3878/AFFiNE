@@ -1,6 +1,11 @@
+import type {
+  MenuConfig,
+  PopupTarget,
+} from '@blocksuite/affine-components/context-menu';
 import type { UniComponent } from '@blocksuite/affine-shared/types';
 
 import { createUniComponentFromWebComponent } from '../utils/uni-component/index.js';
+import type { Property } from '../view-manager/property.js';
 import type { BaseCellRenderer } from './base-cell.js';
 import type { CellRenderer, DataViewCellComponent } from './manager.js';
 
@@ -12,6 +17,11 @@ export interface Renderer<
   type: string;
   icon?: UniComponent;
   cellRenderer: CellRenderer<Data, RawValue, JsonValue>;
+  /** Extra items this property type adds to its property (column header) menu. */
+  headerMenu?: (
+    property: Property<RawValue, JsonValue, Data>,
+    target: PopupTarget
+  ) => MenuConfig[];
 }
 
 export const createFromBaseCellRenderer = <

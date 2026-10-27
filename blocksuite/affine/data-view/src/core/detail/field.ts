@@ -17,7 +17,11 @@ import { property } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { html } from 'lit/static-html.js';
 
-import { inputConfig, typeConfig } from '../common/property-menu.js';
+import {
+  inputConfig,
+  typeConfig,
+  typeMenuConfig,
+} from '../common/property-menu.js';
 import type {
   CellRenderProps,
   DataViewCellLifeCycle,
@@ -121,7 +125,8 @@ export class RecordField extends SignalWatcher(
     if (this.readonly) return;
     const ele = e.currentTarget as HTMLElement;
     const properties = this.view.detailProperties$.value;
-    popMenu(popupTargetFromElement(ele), {
+    const target = popupTargetFromElement(ele);
+    popMenu(target, {
       options: {
         title: {
           text: 'Property settings',
@@ -130,6 +135,7 @@ export class RecordField extends SignalWatcher(
           menu.group({
             items: [inputConfig(this.column), typeConfig(this.column)],
           }),
+          ...typeMenuConfig(this.column, target),
           menu.group({
             items: [
               menu.action({
