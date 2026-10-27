@@ -1,11 +1,14 @@
 import {
   createPopup,
+  menu,
+  type PopupTarget,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
 import {
   BaseCellRenderer,
   createFromBaseCellRenderer,
   createIcon,
+  type Property,
 } from '@blocksuite/data-view';
 import { CheckBoxCheckSolidIcon, CheckBoxUnIcon } from '@blocksuite/icons/lit';
 import { css } from '@emotion/css';
@@ -71,58 +74,16 @@ export class FormulaCell extends BaseCellRenderer<
     this.classList.add(formulaCellStyle);
   }
 
-  private get host(): FormulaHost {
-    return this.view.manager.dataSource as unknown as FormulaHost;
-  }
-
-  private propertyNames(): string[] {
-    const own = this.property.id;
-    return this.view.propertiesRaw$.value
-      .filter(p => p.id !== own)
-      .map(p => p.name$.value)
-      .filter(Boolean);
-  }
-
-  private save(expression: string) {
-    const host = this.host;
-    const columnId = this.property.id;
-    const results = host.rows$.value.map(rowId =>
-      host.formulaPreview(rowId, columnId, expression)
-    );
-    this.property.dataUpdate(() => ({
-      expression,
-      resultType: inferResultType(results),
-    }));
-    this.closeEditor?.();
-  }
-
   private openEditor() {
-    const editor = new FormulaEditor();
-    editor.expression = this.property.data$.value.expression ?? '';
-    editor.properties = this.propertyNames();
-    editor.preview = expression =>
-      this.host.formulaPreview(this.cell.rowId, this.property.id, expression);
-    editor.onSave = expression => this.save(expression);
-    editor.onCancel = () => this.closeEditor?.();
-    const close = createPopup(popupTargetFromElement(this), editor, {
-      onClose: () => {
+    this.closeEditor = openFormulaEditor(
+      popupTargetFromElement(this),
+      this.property,
+      this.cell.rowId,
+      () => {
         this.closeEditor = undefined;
         this.selectCurrentCell(false);
-      },
-      middleware: [
-        autoPlacement({
-          allowedPlacements: [
-            'bottom-start',
-            'bottom-end',
-            'top-start',
-            'top-end',
-          ],
-        }),
-        offset(4),
-        shift({ padding: 8 }),
-      ],
-    });
-    this.closeEditor = close;
+      }
+    );
   }
 
   override afterEnterEditingMode() {
@@ -161,10 +122,81 @@ export class FormulaCell extends BaseCellRenderer<
   }
 }
 
+type FormulaProperty = Property<FormulaResult, unknown, FormulaPropertyData>;
+
+/**
+ * Opens the formula editor for a column, previewing row `rowId` (the first row
+ * when opened from the column header). Returns a function that closes it.
+ */
+function openFormulaEditor(
+  target: PopupTarget,
+  property: FormulaProperty,
+  rowId: string | undefined,
+  onClose?: () => void
+): () => void {
+  const host = property.view.manager.dataSource as unknown as FormulaHost;
+  const own = property.id;
+  const editor = new FormulaEditor();
+  editor.expression = property.data$.value.expression ?? '';
+  editor.properties = property.view.propertiesRaw$.value
+    .filter(p => p.id !== own)
+    .map(p => p.name$.value)
+    .filter(Boolean);
+  editor.preview = expression =>
+    rowId
+      ? host.formulaPreview(rowId, own, expression)
+      : { type: 'empty' as const };
+  const close = createPopup(target, editor, {
+    onClose,
+    middleware: [
+      autoPlacement({
+        allowedPlacements: [
+          'bottom-start',
+          'bottom-end',
+          'top-start',
+          'top-end',
+        ],
+      }),
+      offset(4),
+      shift({ padding: 8 }),
+    ],
+  });
+  editor.onSave = expression => {
+    const results = host.rows$.value.map(id =>
+      host.formulaPreview(id, own, expression)
+    );
+    property.dataUpdate(() => ({
+      expression,
+      resultType: inferResultType(results),
+    }));
+    close();
+  };
+  editor.onCancel = close;
+  return close;
+}
+
 export const formulaColumnConfig =
   formulaPropertyModelConfig.createPropertyMeta({
     icon: createIcon('MathPanelIcon'),
     cellRenderer: {
       view: createFromBaseCellRenderer(FormulaCell),
     },
+    headerMenu: (property, target) =>
+      property.readonly$.value
+        ? []
+        : [
+            menu.action({
+              name: 'Edit formula',
+              select: () => {
+                // Open after the header menu has closed.
+                requestAnimationFrame(() => {
+                  openFormulaEditor(
+                    target,
+                    property,
+                    property.view.manager.dataSource.rows$.value[0]
+                  );
+                });
+              },
+            }),
+          ],
   });

@@ -5,10 +5,12 @@ import {
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
 import { RefNodeSlotsProvider } from '@blocksuite/affine-inline-reference';
+import type { ColumnDataType } from '@blocksuite/affine-model';
 import {
   BaseCellRenderer,
   createFromBaseCellRenderer,
   createIcon,
+  type Property,
 } from '@blocksuite/data-view';
 import { autoPlacement, offset, shift, size } from '@floating-ui/dom';
 import { signal } from '@preact/signals-core';
@@ -28,34 +30,29 @@ import {
   relationPropertyModelConfig,
 } from './define.js';
 import {
+  type ChooserMode,
+  databaseChooserItems,
+  scrollGroup,
+} from './picker.js';
+import {
   databaseTitle,
-  listDatabases,
   listRows,
   relationStoreTick,
   type RelationTarget,
   resolveEntry,
 } from './target.js';
 
-type PickerMode =
-  | { kind: 'rows' }
-  | { kind: 'docs' }
-  | { kind: 'databases'; docId: string };
-
-/** Like menu.group, but the items scroll inside a capped-height list. */
-const scrollGroup =
-  (items: MenuConfig[]): MenuConfig =>
-  (menu, index) => {
-    const rendered = menu.renderItems(items);
-    if (!rendered.length) return;
-    return html`${
-        index === 0
-          ? ''
-          : html`<div
-              style="height: 0.5px;background-color: var(--affine-divider-color);margin: 4px 0"
-            ></div>`
-      }
-      <div class="${relationPickerListStyle}">${rendered}</div>`;
-  };
+/** What the database data source offers relation columns (see data-source.ts). */
+export type RelationHost = {
+  relationSetEntries(
+    rowId: string,
+    propertyId: string,
+    entries: string[]
+  ): void;
+  relationSetTarget(propertyId: string, target: RelationTarget): void;
+  relationTwoWaySet(propertyId: string, on: boolean): void;
+  relationPair(propertyId: string): ColumnDataType | undefined;
+};
 
 type Chip = {
   key: string;
@@ -71,7 +68,8 @@ export class RelationCell extends BaseCellRenderer<
 > {
   private closePicker?: () => void;
 
-  private readonly mode$ = signal<PickerMode>({ kind: 'rows' });
+  /** Used only while the column has no related database yet. */
+  private readonly chooser$ = signal<ChooserMode>({ kind: 'docs' });
 
   protected override firstUpdated(changedProperties: PropertyValues) {
     super.firstUpdated(changedProperties);
@@ -80,6 +78,10 @@ export class RelationCell extends BaseCellRenderer<
 
   get std() {
     return this.view.serviceGet(EditorHostKey)?.std;
+  }
+
+  private get host(): RelationHost {
+    return this.view.manager.dataSource as unknown as RelationHost;
   }
 
   private get target(): RelationTarget | undefined {
@@ -126,23 +128,6 @@ export class RelationCell extends BaseCellRenderer<
     });
   };
 
-  private setTarget(target: RelationTarget) {
-    this.property.dataUpdate(data => ({ ...data, target }));
-    this.mode$.value = { kind: 'rows' };
-  }
-
-  private chooseDoc(docId: string) {
-    const std = this.std;
-    if (!std) return;
-    const databases = listDatabases(std, docId);
-    const only = databases?.length === 1 ? databases[0] : undefined;
-    if (only) {
-      this.setTarget({ docId, blockId: only.blockId });
-    } else {
-      this.mode$.value = { kind: 'databases', docId };
-    }
-  }
-
   private toggleRow(rowId: string) {
     const std = this.std;
     const target = this.target;
@@ -153,98 +138,35 @@ export class RelationCell extends BaseCellRenderer<
     const next = current.includes(rowId)
       ? current.filter(v => v !== rowId)
       : [...current, rowId];
-    this.valueSetImmediate([...new Set(next)]);
+    this.host.relationSetEntries(this.cell.rowId, this.property.id, [
+      ...new Set(next),
+    ]);
   }
 
   private pickerItems(): MenuConfig[] {
     const std = this.std;
     if (!std) return [];
     void relationStoreTick.value;
-    const mode = this.mode$.value;
     const target = this.target;
 
-    if (mode.kind === 'docs' || !target) {
-      const docs = std.workspace.meta.docMetas
-        .filter(d => !d.trash)
-        .sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    if (!target) {
       return [
-        scrollGroup(
-          docs.map(doc =>
-            menu.action({
-              name: doc.title || 'Untitled',
-              closeOnSelect: false,
-              select: () => {
-                this.chooseDoc(doc.id);
-              },
-            })
-          )
-        ),
-      ];
-    }
-
-    if (mode.kind === 'databases') {
-      const back = menu.action({
-        name: 'Back',
-        closeOnSelect: false,
-        select: () => {
-          this.mode$.value = { kind: 'docs' };
-        },
-      });
-      const databases = listDatabases(std, mode.docId);
-      if (!databases) {
-        return [
-          menu.action({
-            name: 'Loading…',
-            closeOnSelect: false,
-            select: () => {},
-          }),
-          back,
-        ];
-      }
-      if (databases.length === 0) {
-        return [
-          menu.action({
-            name: 'This doc has no database',
-            closeOnSelect: false,
-            select: () => {},
-          }),
-          back,
-        ];
-      }
-      return [
-        scrollGroup(
-          databases.map(db =>
-            menu.action({
-              name: db.title || 'Untitled database',
-              closeOnSelect: false,
-              select: () => {
-                this.setTarget({ docId: mode.docId, blockId: db.blockId });
-              },
-            })
-          )
-        ),
-        back,
-      ];
-    }
-
-    const header = menu.group({
-      items: [
         menu.action({
-          name: `Related: ${databaseTitle(std, target)}`,
-          postfix: html`<span style="color: var(--affine-text-secondary-color)"
-            >Change</span
-          >`,
-          closeOnSelect: false,
-          select: () => {
-            this.mode$.value = { kind: 'docs' };
-          },
+          name: 'Choose the related database',
+          select: () => false,
         }),
-      ],
-    });
+        ...databaseChooserItems(
+          std,
+          this.chooser$,
+          picked => this.host.relationSetTarget(this.property.id, picked),
+          true
+        ),
+      ];
+    }
+
     const rows = listRows(std, target);
     if (!rows) {
       return [
-        header,
         menu.action({
           name: 'Loading…',
           closeOnSelect: false,
@@ -256,7 +178,6 @@ export class RelationCell extends BaseCellRenderer<
       (this.value ?? []).map(e => resolveEntry(rows, e)?.id ?? e)
     );
     return [
-      header,
       scrollGroup(
         rows.map(row =>
           menu.action({
@@ -274,7 +195,7 @@ export class RelationCell extends BaseCellRenderer<
 
   private popPicker() {
     if (!this.std) return;
-    this.mode$.value = { kind: 'rows' };
+    this.chooser$.value = { kind: 'docs' };
     const handler = popMenu(popupTargetFromElement(this), {
       // popMenu's default placement, plus size(): keep the whole menu inside
       // the viewport by shrinking the scrollable list to the space left.
@@ -352,10 +273,86 @@ export class RelationCell extends BaseCellRenderer<
   }
 }
 
+const secondary = (text: string) =>
+  html`<span
+    style="color: var(--affine-text-secondary-color);font-size: 14px;max-width: 140px;overflow: hidden;text-overflow: ellipsis;white-space: nowrap"
+    >${text}</span
+  >`;
+
+/** Column header menu: the related database and two-way setting. */
+function relationHeaderMenu(
+  property: Property<string[], string[], RelationPropertyData>
+): MenuConfig[] {
+  const std = property.view.serviceGet(EditorHostKey)?.std;
+  if (!std || property.readonly$.value) return [];
+  const host = property.view.manager.dataSource as unknown as RelationHost;
+  const chooser$ = signal<ChooserMode>({ kind: 'docs' });
+
+  const items = (): MenuConfig[] => {
+    void relationStoreTick.value;
+    const data = property.data$.value;
+    const pair = host.relationPair(property.id);
+
+    if (data.mirrorOf && data.target) {
+      const source = databaseTitle(std, data.target);
+      return [
+        menu.action({
+          name: pair
+            ? `Two-way with ${source} · ${pair.name}`
+            : `Two-way source in ${source} was deleted`,
+          select: () => false,
+        }),
+        menu.action({
+          name: 'Remove two-way relation',
+          postfix: secondary('deletes this column'),
+          class: { 'delete-item': true },
+          select: () => {
+            host.relationTwoWaySet(property.id, false);
+          },
+        }),
+      ];
+    }
+
+    return [
+      menu.subMenu({
+        name: 'Related database',
+        postfix: secondary(
+          data.target ? databaseTitle(std, data.target) : 'Not set'
+        ),
+        options: {
+          search: { placeholder: 'Search' },
+          items: [
+            menu.dynamic(() =>
+              databaseChooserItems(
+                std,
+                chooser$,
+                picked => host.relationSetTarget(property.id, picked),
+                false
+              )
+            ),
+          ],
+        },
+      }),
+      ...(data.target
+        ? [
+            menu.toggleSwitch({
+              name: 'Two-way relation',
+              on: !!pair,
+              onChange: on => host.relationTwoWaySet(property.id, on),
+            }),
+          ]
+        : []),
+    ];
+  };
+
+  return [menu.group({ items: [menu.dynamic(items)] })];
+}
+
 export const relationColumnConfig =
   relationPropertyModelConfig.createPropertyMeta({
     icon: createIcon('LinkedPageIcon'),
     cellRenderer: {
       view: createFromBaseCellRenderer(RelationCell),
     },
+    headerMenu: relationHeaderMenu,
   });

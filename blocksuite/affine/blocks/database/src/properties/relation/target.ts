@@ -70,7 +70,7 @@ export function textTitle(std: WorkspaceHolder, text?: Text): string {
     .trim();
 }
 
-function linkedDocOf(text?: Text): string | undefined {
+export function linkedDocOf(text?: Text): string | undefined {
   const delta = text?.deltas$.value.find(d => isLinkedDoc(d));
   return delta?.attributes?.reference?.pageId as string | undefined;
 }

@@ -13,6 +13,7 @@ import {
   textTitle,
   type WorkspaceHolder,
 } from '../relation/target.js';
+import { relationEntries } from '../relation/two-way.js';
 import {
   evaluate,
   type FormulaValue,
@@ -167,7 +168,11 @@ function readCell(
       });
     }
     case 'relation':
-      return readRelation(holder, column, value);
+      return readRelation(
+        holder,
+        column,
+        relationEntries(holder, database, rowId, column)
+      );
     case 'rich-text':
     case 'link':
       return value == null ? null : String(value);

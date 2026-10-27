@@ -19,6 +19,14 @@ export const RelationPropertySchema = zod.object({
       blockId: zod.string(),
     })
     .optional(),
+  /** Two-way: id of the mirror column in the target database that shows this one. */
+  backlink: zod.string().optional(),
+  /**
+   * This column is the mirror side of a two-way relation: its cells are not
+   * stored but read from column `mirrorOf` of the target database, and edits
+   * are written there (see two-way.ts).
+   */
+  mirrorOf: zod.string().optional(),
 });
 export type RelationPropertyData = zod.infer<typeof RelationPropertySchema>;
 
@@ -65,6 +73,11 @@ export const relationPropertyModelConfig = relationColumnType.modelConfig({
           ? (resolveEntry(rows, entry)?.title ?? entry)
           : std.workspace.meta.getDocMeta(entry)?.title || entry
       );
+    },
+    // Mirror cells are computed; pasting into them is ignored (edits go through
+    // the picker, which writes the source column).
+    setValue: ({ data, newValue, setValue }) => {
+      if (!data.mirrorOf) setValue(newValue);
     },
     fromJson: ({ value }) =>
       Array.isArray(value) && value.every(v => typeof v === 'string')

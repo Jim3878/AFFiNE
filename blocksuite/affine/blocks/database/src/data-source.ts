@@ -36,6 +36,17 @@ import {
   databaseBlockProperties,
   databasePropertyConverts,
 } from './properties/index.js';
+import type { RelationTarget } from './properties/relation/target.js';
+import {
+  backlinkColumn,
+  beforeRelationDelete,
+  disableTwoWay,
+  enableTwoWay,
+  mirrorSource,
+  relationEntries,
+  setMirroredEntries,
+  setRelationTarget,
+} from './properties/relation/two-way.js';
 import {
   addProperty,
   copyCellsByProperty,
@@ -96,6 +107,15 @@ export class DatabaseBlockDataSource extends DataSourceBase {
         return getIcon(model);
       },
     },
+    relation: {
+      valueSet: () => {},
+      valueGet: (rowId: string, propertyId: string) => {
+        const column = getProperty(this._model, propertyId);
+        return column
+          ? relationEntries(this.workspaceHolder, this._model, rowId, column)
+          : [];
+      },
+    },
     formula: {
       valueSet: () => {},
       valueGet: (rowId: string, propertyId: string) =>
@@ -112,6 +132,49 @@ export class DatabaseBlockDataSource extends DataSourceBase {
       },
     },
   };
+
+  private get workspaceHolder() {
+    return { workspace: this._model.store.workspace };
+  }
+
+  /** Sets the related rows of a relation cell (a mirror cell writes its source column). */
+  relationSetEntries(rowId: string, propertyId: string, entries: string[]) {
+    if (
+      !setMirroredEntries(
+        this.workspaceHolder,
+        this._model,
+        rowId,
+        propertyId,
+        entries
+      )
+    ) {
+      this.cellValueChange(rowId, propertyId, entries);
+    }
+  }
+
+  relationSetTarget(propertyId: string, target: RelationTarget) {
+    this.doc.captureSync();
+    setRelationTarget(this.workspaceHolder, this._model, propertyId, target);
+  }
+
+  relationTwoWaySet(propertyId: string, on: boolean) {
+    this.doc.captureSync();
+    if (on) {
+      enableTwoWay(this.workspaceHolder, this._model, propertyId);
+    } else {
+      disableTwoWay(this.workspaceHolder, this._model, propertyId, id =>
+        this.propertyDelete(id)
+      );
+    }
+  }
+
+  /** The other side of a two-way relation column: its mirror, or (for a mirror) its source. */
+  relationPair(propertyId: string): ColumnDataType | undefined {
+    return (
+      backlinkColumn(this.workspaceHolder, this._model, propertyId) ??
+      mirrorSource(this.workspaceHolder, this._model, propertyId)
+    );
+  }
 
   /** Computes a formula column for a row (its own formula, or `expression`). */
   formulaPreview(
@@ -446,6 +509,7 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     this.doc.captureSync();
     const index = this._model.props.columns.findIndex(v => v.id === id);
     if (index < 0) return;
+    beforeRelationDelete(this.workspaceHolder, this._model, id);
 
     this.doc.transact(() => {
       this._model.props.columns = this._model.props.columns.filter(

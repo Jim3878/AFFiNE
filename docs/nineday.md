@@ -41,9 +41,11 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   Notion-style:
   - Column type `relation`. Column data `target: { docId, blockId }` = the related database (any
     database block in any doc). A cell stores the related **row ids** of that database.
-  - Picker (searchable popup menu, opened like select cells: select the cell, then Enter/click):
-    with no target it first lists docs → the doc's databases (auto-picked when there is one);
-    then it lists the target's rows to toggle (stays open), with a "Related: … / Change" entry.
+  - Column header menu (`headerMenu`, see below): "Related database" submenu (docs → databases,
+    searchable) and a "Two-way relation" switch.
+  - Cell picker (searchable popup menu, opened like select cells: select the cell, then Enter/click):
+    lists the target's rows to toggle (stays open); with no target yet it first offers the same
+    doc → database chooser.
   - Cells render rows as tag-like chips; click opens the row's doc (rows whose title links a doc,
     i.e. imported Notion row pages) or else the database's doc.
   - Other docs are read through a readonly `Store` loaded on demand (`target.ts`, cached per
@@ -59,7 +61,14 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
     its body does not scroll, so long row lists spilled out of the menu. The relation picker wraps its
     lists in its own scroll container, and a floating-ui `size()` middleware shrinks it to the space
     left on screen.
-  - Not yet: two-way relations, rollups/formulas.
+  - **Two-way** (`relation/two-way.ts`, `nineday.7`): turning it on adds a mirror column to the
+    target database (`mirrorOf: <source column>`; the source gets `backlink`). Only the source
+    column's cells are stored; a mirror cell is computed as the source rows that point at the row,
+    and editing it rewrites those source cells (through a writable store of the other doc). So the
+    sides cannot disagree, and turning two-way off (deleting the mirror) loses no data. Deleting the
+    source column deletes its mirror; changing its target turns two-way off first. Within one
+    database the mirror is named "<column> (back)", otherwise after the source database.
+  - Not yet: rollup as its own column type (use a formula).
   - Official desktop/mobile apps and other clients do not know the `relation` type; use the web app.
 - **Formula column** (`blocksuite/affine/blocks/database/src/properties/formula/`), Notion syntax:
   - Column type `formula`, data `{ expression, resultType }`. Values are computed on every read as a
@@ -77,6 +86,10 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   - The built-in title property is `prop("Title")` when it is not a named column.
   - User guide (Traditional Chinese): `docs/formula.md`, linked from the editor ("語法說明") via
     its GitHub URL on the `nineday` branch, so the guide can change without rebuilding the image.
+- **Property-type header menus** (data-view, `nineday.7`): `Renderer.headerMenu(property, target)`
+  lets a property type add items to its column header menu; wired into the table header (pc and
+  pc-virtual), mobile table header and the row detail panel via `typeMenuConfig()` in
+  `core/common/property-menu.ts`. Used by Relation and Formula ("Edit formula").
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.
