@@ -66,6 +66,7 @@
     "./edgeless-shape-color-picker": "./src/edgeless-shape-color-picker/index.ts",
     "./open-doc-dropdown-menu": "./src/open-doc-dropdown-menu/index.ts",
     "./slider": "./src/slider/index.ts",
+    "./sticky-scrollbar": "./src/sticky-scrollbar/index.ts",
     "./tooltip": "./src/tooltip/index.ts"
   },
   "files": [

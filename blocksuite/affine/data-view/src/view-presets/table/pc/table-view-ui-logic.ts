@@ -3,11 +3,12 @@ import {
   popMenu,
   popupTargetFromElement,
 } from '@blocksuite/affine-components/context-menu';
+import { bindStickyScrollbar } from '@blocksuite/affine-components/sticky-scrollbar';
 import type { InsertToPosition } from '@blocksuite/affine-shared/utils';
 import { AddCursorIcon } from '@blocksuite/icons/lit';
 import { signal } from '@preact/signals-core';
 import type { TemplateResult } from 'lit';
-import { ref } from 'lit/directives/ref.js';
+import { createRef, ref } from 'lit/directives/ref.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import { html } from 'lit/static-html.js';
@@ -154,6 +155,19 @@ export class TableViewUI extends DataViewUIBase<TableViewUILogic> {
     this.dataset['testid'] = 'dv-table-view';
   }
 
+  private readonly wrapperRef = createRef<HTMLDivElement>();
+
+  private readonly stickyScrollbarRef = createRef<HTMLDivElement>();
+
+  override firstUpdated() {
+    const scroller = this.logic.scrollContainer$.value;
+    const wrapper = this.wrapperRef.value;
+    const bar = this.stickyScrollbarRef.value;
+    if (scroller && wrapper && bar) {
+      this.disposables.add(bindStickyScrollbar(scroller, bar, wrapper));
+    }
+  }
+
   private renderTable() {
     const groups = this.logic.view.groupTrait.groupsDataList$.value?.filter(
       (g): g is Group => g !== undefined
@@ -198,7 +212,11 @@ export class TableViewUI extends DataViewUIBase<TableViewUILogic> {
             })
           : ''
       }
-      <div class="${tableWrapperStyle}" style="${wrapperStyle}">
+      <div
+        ${ref(this.wrapperRef)}
+        class="${tableWrapperStyle}"
+        style="${wrapperStyle}"
+      >
         <div
           ${ref(this.logic.scrollContainer$)}
           class="${tableScrollContainerStyle}"
@@ -219,6 +237,7 @@ export class TableViewUI extends DataViewUIBase<TableViewUILogic> {
           </div>
         </div>
       </div>
+      <div ${ref(this.stickyScrollbarRef)}></div>
     `;
   }
 }

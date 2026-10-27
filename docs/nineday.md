@@ -106,6 +106,14 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   (floating-ui `size()`) caps a menu's height to the space left on screen (160–700px) and its
   body scrolls; used by `popMenu`'s default middleware and by submenus (not `autoHeight` ones).
   Before, long menus such as the column menu ran off the bottom of the screen with Delete unreachable.
+- **Sticky horizontal scrollbar** (`components/src/sticky-scrollbar`, `nineday.11`): wide tables
+  scrolled sideways only with their own scrollbar at the table's bottom edge, so a long table had
+  to be scrolled to its end first. `bindStickyScrollbar(scroller, bar, frame)` drives an empty
+  element rendered after the table: `position: sticky; bottom: 0`, so it stays at the bottom of
+  the viewport while the table is on screen and rests under the table at its end; it mirrors the
+  scroller's `scrollLeft` both ways, follows content width with a ResizeObserver (updated in the
+  next frame to avoid a ResizeObserver loop), hides when nothing overflows, and the scroller's
+  own scrollbar is hidden. Used by the database table view (`pc/`) and the simple table block.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.

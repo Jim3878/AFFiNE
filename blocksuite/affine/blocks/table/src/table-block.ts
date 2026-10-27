@@ -1,4 +1,5 @@
 import { CaptionedBlockComponent } from '@blocksuite/affine-components/caption';
+import { bindStickyScrollbar } from '@blocksuite/affine-components/sticky-scrollbar';
 import type { TableBlockModel } from '@blocksuite/affine-model';
 import { EDGELESS_TOP_CONTENTEDITABLE_SELECTOR } from '@blocksuite/affine-shared/consts';
 import { DocModeProvider } from '@blocksuite/affine-shared/services';
@@ -10,8 +11,8 @@ import {
   RANGE_SYNC_EXCLUDE_ATTR,
 } from '@blocksuite/std/inline';
 import { signal } from '@preact/signals-core';
-import { html, nothing } from 'lit';
-import { ref } from 'lit/directives/ref.js';
+import { html, nothing, type PropertyValues } from 'lit';
+import { createRef, ref } from 'lit/directives/ref.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
@@ -130,6 +131,19 @@ export class TableBlockComponent extends CaptionedBlockComponent<TableBlockModel
 
   table$ = signal<HTMLTableElement>();
 
+  private readonly scrollerRef = createRef<HTMLDivElement>();
+
+  private readonly stickyScrollbarRef = createRef<HTMLDivElement>();
+
+  override firstUpdated(changedProperties: PropertyValues) {
+    super.firstUpdated(changedProperties);
+    const scroller = this.scrollerRef.value;
+    const bar = this.stickyScrollbarRef.value;
+    if (scroller && bar) {
+      this.disposables.add(bindStickyScrollbar(scroller, bar));
+    }
+  }
+
   public getScale(): number {
     const table = this.table$.value;
     if (!table) return 1;
@@ -208,6 +222,7 @@ export class TableBlockComponent extends CaptionedBlockComponent<TableBlockModel
     const virtualPadding = this.virtualPaddingController.virtualPadding$.value;
     return html`
       <div
+        ${ref(this.scrollerRef)}
         contenteditable="false"
         class=${tableContainer}
         style=${styleMap({
@@ -286,6 +301,7 @@ export class TableBlockComponent extends CaptionedBlockComponent<TableBlockModel
           </table>
         </div>
       </div>
+      <div contenteditable="false" ${ref(this.stickyScrollbarRef)}></div>
     `;
   }
 }
