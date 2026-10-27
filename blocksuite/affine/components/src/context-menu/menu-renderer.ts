@@ -18,6 +18,7 @@ import {
   type Placement,
   type ReferenceElement,
   shift,
+  size,
 } from '@floating-ui/dom';
 import { css, html, nothing } from 'lit';
 import { property } from 'lit/decorators.js';
@@ -74,6 +75,10 @@ export class MenuComponent
       display: flex;
       flex-direction: column;
       gap: 4px;
+      /* nineday: scroll when menuSizeMiddleware caps the menu's height */
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .no-results {
@@ -498,6 +503,14 @@ export const createPopup = (
   return close;
 };
 
+// nineday: keep a menu inside the viewport; its body scrolls when the items don't fit.
+export const menuSizeMiddleware = size({
+  padding: 8,
+  apply({ availableHeight, elements }) {
+    elements.floating.style.maxHeight = `${Math.max(160, Math.min(700, availableHeight))}px`;
+  },
+});
+
 export type MenuHandler = {
   close: () => void;
   menu: Menu;
@@ -567,6 +580,7 @@ export const popMenu = (
       }),
       offset(4),
       shift({ padding: 8 }),
+      menuSizeMiddleware,
     ],
     container: props.container,
     placement: props.placement,

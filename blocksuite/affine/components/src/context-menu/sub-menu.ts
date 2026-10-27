@@ -15,7 +15,11 @@ import { classMap } from 'lit/directives/class-map.js';
 import { MenuButton } from './button.js';
 import { MenuFocusable } from './focusable.js';
 import { Menu, type MenuOptions } from './menu.js';
-import { popMenu, popupTargetFromElement } from './menu-renderer.js';
+import {
+  menuSizeMiddleware,
+  popMenu,
+  popupTargetFromElement,
+} from './menu-renderer.js';
 import type { MenuItemRender } from './types.js';
 
 export type MenuSubMenuData = {
@@ -135,7 +139,11 @@ export class MenuSubMenu extends MenuFocusable {
     menu.menuElement.style.minWidth = '200px';
     const unsub = autoUpdate(this, menu.menuElement, () => {
       computePosition(this, menu.menuElement, {
-        middleware: this.data.middleware ?? subMenuMiddleware,
+        middleware:
+          this.data.middleware ??
+          (this.data.autoHeight
+            ? subMenuMiddleware
+            : [...subMenuMiddleware, menuSizeMiddleware]),
       })
         .then(({ x, y }) => {
           menu.menuElement.style.left = `${x}px`;

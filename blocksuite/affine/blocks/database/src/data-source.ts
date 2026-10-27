@@ -478,7 +478,14 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     if (!result) {
       return {};
     }
-    return result.column.data;
+    // nineday: columns written by other clients (e.g. affine-mcp-server) can lack `data`;
+    // fall back to the type's default so menus and cells that read it don't throw.
+    const { column } = result;
+    return (
+      column.data ??
+      this.propertyMetaGet(column.type)?.config.propertyData.default() ??
+      {}
+    );
   }
 
   propertyDataSet(propertyId: string, data: Record<string, unknown>): void {

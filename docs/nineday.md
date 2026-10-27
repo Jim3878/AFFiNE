@@ -98,6 +98,14 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   selection, so copy, Delete and paste work on it; Shift+click extends the range from the focused
   column. The column menu moved to right click (newly inserted columns still open it to edit the
   name). Only the default table (`pc/`); the experimental virtual-scroll table is unchanged.
+- **Columns without `data`** (`blocks/database/src/data-source.ts`, `nineday.10`): columns written
+  by other clients (affine-mcp-server writes no `data` for title/rich-text/option-less select
+  columns) made the column header menu throw while building the Number Format items, so the
+  menu never opened. `propertyDataGet` now falls back to the type's default data.
+- **Menus fit the viewport** (`components/src/context-menu`, `nineday.10`): `menuSizeMiddleware`
+  (floating-ui `size()`) caps a menu's height to the space left on screen (160–700px) and its
+  body scrolls; used by `popMenu`'s default middleware and by submenus (not `autoHeight` ones).
+  Before, long menus such as the column menu ran off the bottom of the screen with Delete unreachable.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.
