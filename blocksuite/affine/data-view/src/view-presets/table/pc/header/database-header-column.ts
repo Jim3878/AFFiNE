@@ -46,7 +46,9 @@ import {
   ShowQuickSettingBarKey,
 } from '../../../../widget-presets/quick-setting-bar/context.js';
 import { DEFAULT_COLUMN_TITLE_HEIGHT } from '../../consts.js';
+import { TableViewAreaSelection } from '../../selection.js';
 import type { TableProperty } from '../../table-view-manager.js';
+import type { TableGroup } from '../group.js';
 import type { TableViewUILogic } from '../table-view-ui-logic.js';
 import {
   getTableGroupRect,
@@ -67,11 +69,42 @@ export class DatabaseHeaderColumn extends SignalWatcher(
     }
   `;
 
-  private readonly _clickColumn = () => {
+  // nineday: left click selects the whole column (shift extends the range);
+  // the column menu is on right click.
+  private readonly _clickColumn = (event: MouseEvent) => {
     if (this.tableViewManager.readonly$.value) {
       return;
     }
-    this.popMenu();
+    const selectionController = this.tableViewLogic.selectionController;
+    const groupKey = this.closest<TableGroup>('affine-data-view-table-group')
+      ?.group?.key;
+    const rowCount = selectionController.rows(groupKey)?.length ?? 0;
+    if (rowCount === 0) {
+      return;
+    }
+    const columnIndex = this.tableViewManager.properties$.value.findIndex(
+      v => v.id === this.column.id
+    );
+    if (columnIndex < 0) {
+      return;
+    }
+    const current = selectionController.selection;
+    const anchor =
+      event.shiftKey &&
+      current?.selectionType === 'area' &&
+      current.groupKey === groupKey
+        ? current.focus.columnIndex
+        : columnIndex;
+    selectionController.selection = TableViewAreaSelection.create({
+      groupKey,
+      focus: { rowIndex: 0, columnIndex: anchor },
+      rowsSelection: { start: 0, end: rowCount - 1 },
+      columnsSelection: {
+        start: Math.min(anchor, columnIndex),
+        end: Math.max(anchor, columnIndex),
+      },
+      isEditing: false,
+    });
   };
 
   private readonly _clickTypeIcon = (event: MouseEvent) => {
@@ -141,7 +174,10 @@ export class DatabaseHeaderColumn extends SignalWatcher(
   private readonly widthDragBar = createRef();
 
   editTitle = () => {
-    this._clickColumn();
+    if (this.tableViewManager.readonly$.value) {
+      return;
+    }
+    this.popMenu();
   };
 
   private get readonly() {

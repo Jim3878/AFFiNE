@@ -93,6 +93,11 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
 - **Submenus open on click** (`components/src/context-menu`, `nineday.8`): context-menu submenus
   (Type, Related database, Number Format, …) no longer open on hover or close when the pointer
   moves to another item; click opens/closes them, a click elsewhere in the menu closes them.
+- **Column header selects the column** (data-view table, `pc/header/database-header-column.ts`):
+  left click on a column header selects the whole column (all rows of that group) as an area
+  selection, so copy, Delete and paste work on it; Shift+click extends the range from the focused
+  column. The column menu moved to right click (newly inserted columns still open it to edit the
+  name). Only the default table (`pc/`); the experimental virtual-scroll table is unchanged.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.
