@@ -114,6 +114,8 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   scroller's `scrollLeft` both ways, follows content width with a ResizeObserver (updated in the
   next frame to avoid a ResizeObserver loop), hides when nothing overflows, and the scroller's
   own scrollbar is hidden. Used by the database table view (`pc/`) and the simple table block.
+- **zh-Hant "Duplicate"** (`packages/frontend/i18n/src/resources/zh-Hant.json`, `nineday.12`):
+  `com.affine.header.option.duplicate` was translated as 「製作替身」; now 「建立副本」.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.
