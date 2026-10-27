@@ -830,6 +830,7 @@
   "com.affine.page-properties.property.docPrimaryMode.tooltips": "选择页面模式、无边界模式或自动模式，适合根据内容选择最佳显示方式。",
   "com.affine.page-properties.property.edgelessTheme.tooltips": "选择浅色、深色或系统主题，精确控制内容的查看样式。",
   "com.affine.page-properties.property.pageWidth.tooltips": "控制此页面的宽度以适合内容显示需要。",
+  "com.affine.page-properties.property.pageWidth.default": "默认",
   "com.affine.page-properties.property.template.tooltips": "将此文档标记为模板，可用于创建新文档。",
   "com.affine.page-properties.property.createdBy.tip": "由 {{userName}} 创建",
   "com.affine.page-properties.property.updatedBy.tip": "最后由 {{userName}} 编辑",

@@ -3482,6 +3482,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.page-properties.property.pageWidth.tooltips"](): string;
     /**
+      * `Default`
+      */
+    ["com.affine.page-properties.property.pageWidth.default"](): string;
+    /**
       * `Mark this doc as a template, which can be used to create new docs.`
       */
     ["com.affine.page-properties.property.template.tooltips"](): string;

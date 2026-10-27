@@ -858,6 +858,7 @@
   "com.affine.page-properties.property.docPrimaryMode.tooltips": "Select the doc mode from Page Mode, Edgeless Mode, or Auto. Useful for choosing the best display for your content.",
   "com.affine.page-properties.property.edgelessTheme.tooltips": "Select the doc theme from Light, Dark, or System. Useful for precise control over content viewing style.",
   "com.affine.page-properties.property.pageWidth.tooltips": "Control the width of this page to fit content display needs.",
+  "com.affine.page-properties.property.pageWidth.default": "Default",
   "com.affine.page-properties.property.template.tooltips": "Mark this doc as a template, which can be used to create new docs.",
   "com.affine.page-properties.property.createdBy.tip": "Created by {{userName}}",
   "com.affine.page-properties.property.updatedBy.tip": "Last edited by {{userName}}",

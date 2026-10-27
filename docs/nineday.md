@@ -116,6 +116,11 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   own scrollbar is hidden. Used by the database table view (`pc/`) and the simple table block.
 - **zh-Hant "Duplicate"** (`packages/frontend/i18n/src/resources/zh-Hant.json`, `nineday.12`):
   `com.affine.header.option.duplicate` was translated as 「製作替身」; now 「建立副本」.
+- **Page width "Default"** (`core/src/components/workspace-property-types/page-width.tsx`,
+  `nineday.13`): the doc's Page width property only offered Standard / Full width and showed the
+  viewer's default when unset, so once clicked a page could never follow the default again. A
+  third option, Default (i18n `com.affine.page-properties.property.pageWidth.default`), clears
+  the stored value (writes `null`; the doc db skips `undefined`).
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.

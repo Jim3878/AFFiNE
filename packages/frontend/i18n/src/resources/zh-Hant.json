@@ -800,6 +800,7 @@
   "com.affine.page-properties.property.docPrimaryMode.tooltips": "從頁面模式、無界模式或自動中選擇文件模式。對於選擇顯示內容的最佳方式非常有用。",
   "com.affine.page-properties.property.edgelessTheme.tooltips": "從明亮、深色或系統中選擇文件主題。有助於精確控制內容的檢視風格。",
   "com.affine.page-properties.property.pageWidth.tooltips": "控制此頁面的寬度以滿足內容顯示需求。",
+  "com.affine.page-properties.property.pageWidth.default": "預設",
   "com.affine.page-properties.property.template.tooltips": "將此文檔標記為模板，可用於創建新文檔。",
   "com.affine.page-properties.property.createdBy.tip": "由 {{userName}} 創建",
   "com.affine.page-properties.property.updatedBy.tip": "最後由 {{userName}} 編輯",

@@ -1,7 +1,6 @@
 import { MenuItem, PropertyValue, type RadioItem } from '@affine/component';
 import type { FilterParams } from '@affine/core/modules/collection-rules';
 import { type DocRecord, DocService } from '@affine/core/modules/doc';
-import { EditorSettingService } from '@affine/core/modules/editor-setting';
 import { useI18n } from '@affine/i18n';
 import { LongerIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
@@ -15,18 +14,24 @@ import type { PropertyValueProps } from '../properties/types';
 import { PropertyRadioGroup } from '../properties/widgets/radio-group';
 import { container } from './page-width.css';
 
+// nineday: "default" = no value stored on the page, so it follows the viewer's full-width setting.
+const DEFAULT_PAGE_WIDTH = 'default';
+
 export const PageWidthValue = ({ readonly }: PropertyValueProps) => {
   const t = useI18n();
-  const editorSetting = useService(EditorSettingService).editorSetting;
-  const defaultPageWidth = useLiveData(editorSetting.settings$).fullWidthLayout;
 
   const doc = useService(DocService).doc;
   const pageWidth = useLiveData(doc.properties$.selector(p => p.pageWidth));
 
-  const radioValue = pageWidth ?? (defaultPageWidth ? 'fullWidth' : 'standard');
+  const radioValue = pageWidth ?? DEFAULT_PAGE_WIDTH;
 
   const radioItems = useMemo<RadioItem[]>(
     () => [
+      {
+        value: DEFAULT_PAGE_WIDTH,
+        label: t['com.affine.page-properties.property.pageWidth.default'](),
+        testId: 'default-width-trigger',
+      },
       {
         value: 'standard',
         label:
@@ -49,7 +54,11 @@ export const PageWidthValue = ({ readonly }: PropertyValueProps) => {
 
   const handleChange = useCallback(
     (value: string) => {
-      doc.record.setProperty('pageWidth', value);
+      // null clears the stored value (the doc db skips undefined fields).
+      doc.record.setProperty(
+        'pageWidth',
+        value === DEFAULT_PAGE_WIDTH ? (null as unknown as undefined) : value
+      );
     },
     [doc]
   );
