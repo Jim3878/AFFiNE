@@ -27,6 +27,22 @@ export function bindStickyScrollbar(
   });
   scroller.style.scrollbarWidth = 'none';
 
+  // Positions snap to device pixels (fractional at non-100% zoom), so a copied position comes
+  // back slightly different, and its scroll event used to copy it back onto the element the
+  // user is scrolling, pulling that one to an older position (visible jitter). So copy only
+  // differences of 1px or more, and ignore the scroll event our own copy causes.
+  const written = new WeakMap<HTMLElement, number>();
+  const copy = (from: HTMLElement, to: HTMLElement) => {
+    if (Math.abs(to.scrollLeft - from.scrollLeft) < 1) return;
+    to.scrollLeft = from.scrollLeft;
+    written.set(to, to.scrollLeft);
+  };
+  const isEcho = (el: HTMLElement) => {
+    const value = written.get(el);
+    written.delete(el);
+    return value !== undefined && Math.abs(el.scrollLeft - value) < 1;
+  };
+
   const update = () => {
     const frameStyle = getComputedStyle(frame);
     bar.style.marginLeft = frameStyle.marginLeft;
@@ -34,20 +50,16 @@ export function bindStickyScrollbar(
     inner.style.width = `${scroller.scrollWidth}px`;
     const overflowing = scroller.scrollWidth > scroller.clientWidth + 1;
     bar.style.display = overflowing ? 'block' : 'none';
-    if (overflowing && bar.scrollLeft !== scroller.scrollLeft) {
-      bar.scrollLeft = scroller.scrollLeft;
+    if (overflowing) {
+      copy(scroller, bar);
     }
   };
 
   const onScrollerScroll = () => {
-    if (bar.scrollLeft !== scroller.scrollLeft) {
-      bar.scrollLeft = scroller.scrollLeft;
-    }
+    if (!isEcho(scroller)) copy(scroller, bar);
   };
   const onBarScroll = () => {
-    if (scroller.scrollLeft !== bar.scrollLeft) {
-      scroller.scrollLeft = bar.scrollLeft;
-    }
+    if (!isEcho(bar)) copy(bar, scroller);
   };
   scroller.addEventListener('scroll', onScrollerScroll, { passive: true });
   bar.addEventListener('scroll', onBarScroll, { passive: true });
