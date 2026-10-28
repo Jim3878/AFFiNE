@@ -257,11 +257,14 @@ export abstract class PropertyBase<
   }
 
   valueSetFromString(rowId: string, value: string): void {
+    // nineday: select types return their (possibly mutated) data every time; only write it back
+    // when it changed, so clearing or pasting a column does not rewrite the column per row.
+    const before = JSON.stringify(this.data$.value);
     const data = this.parseValueFromString(value);
     if (!data) {
       return;
     }
-    if (data.data) {
+    if (data.data && JSON.stringify(data.data) !== before) {
       this.dataUpdate(() => data.data as Data);
     }
     this.valueSet(rowId, data.value as RawValue);

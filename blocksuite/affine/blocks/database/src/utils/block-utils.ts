@@ -166,7 +166,12 @@ export function updateCell(
     if (!model.props.cells[rowId]) {
       model.props.cells[rowId] = Object.create(null);
     }
-    if (model.props.cells[rowId]) {
+    const existing = model.props.cells[rowId]?.[columnId];
+    if (existing) {
+      // nineday: write only the value. Assigning a new cell object makes the store scan every
+      // stored key of the block, so clearing or pasting a whole column took quadratic time.
+      existing.value = cell.value;
+    } else if (model.props.cells[rowId]) {
       model.props.cells[rowId][columnId] = {
         columnId: columnId,
         value: cell.value,

@@ -60,6 +60,12 @@ export class BlockModel<Props extends object = object> {
 
   pop!: (prop: keyof Props & string) => void;
 
+  /**
+   * NineDay: runs `fn`, updating the signals of the props it changes once at the end instead of
+   * on every nested write (writes still go to Yjs right away). Inside `fn`, `prop$` signals are stale.
+   */
+  deferPropUpdates!: (fn: () => void) => void;
+
   propsUpdated = new Subject<{ key: string }>();
 
   stash!: (prop: keyof Props & string) => void;

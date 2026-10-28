@@ -322,6 +322,16 @@ export class DatabaseBlockDataSource extends DataSourceBase {
     }
   }
 
+  override cellsBatchUpdate(update: () => void): void {
+    // One transaction: one undo step and one sync update. Not preact batch(): the store writes
+    // a props signal back to Yjs when its subscriber runs outside the store's own update, and a
+    // batch delays the subscriber until then (the whole `cells` map was rewritten, untracked).
+    // deferPropUpdates outside the transaction: Yjs reports each changed row when the transaction
+    // ends, and every report rebuilt `cells$` and recomputed every cell (59 rows: ~0.5 s). Deferred,
+    // `cells$` is rebuilt once.
+    this._model.deferPropUpdates(() => this._model.store.transact(update));
+  }
+
   cellValueChange(rowId: string, propertyId: string, value: unknown): void {
     this._runCapture();
 

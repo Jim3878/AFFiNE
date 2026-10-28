@@ -64,6 +64,7 @@ export class FlatSyncController {
     model._props = proxy;
     model.stash = this.stash;
     model.pop = this.pop;
+    model.deferPropUpdates = fn => fn();
     if (this.doc) {
       model.store = this.doc;
     }

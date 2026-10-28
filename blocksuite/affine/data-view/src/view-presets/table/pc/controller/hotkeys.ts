@@ -35,21 +35,28 @@ export class TableHotkeysController implements ReactiveController {
     if (focus && !isEditing) {
       if (rowsSelection && columnsSelection) {
         // multi cell
+        // nineday: find the cells first (rows queried once), then clear them as one update;
+        // cell by cell, clearing a whole column of a few hundred rows took seconds.
+        const rows = this.selectionController.rows(groupKey);
+        const containers: TableViewCellContainer[] = [];
         for (let i = rowsSelection.start; i <= rowsSelection.end; i++) {
-          const { start, end } = columnsSelection;
-          for (let j = start; j <= end; j++) {
-            const container = this.selectionController.getCellContainer(
-              groupKey,
-              i,
-              j
-            );
-            const rowId = container?.dataset.rowId;
-            const columnId = container?.dataset.columnId;
-            if (rowId && columnId) {
-              container?.column.valueSetFromString(rowId, '');
-            }
+          const cells = rows
+            ?.item(i)
+            ?.querySelectorAll('dv-table-view-cell-container');
+          for (let j = columnsSelection.start; j <= columnsSelection.end; j++) {
+            const container = cells?.item(j);
+            if (container) containers.push(container);
           }
         }
+        this.logic.view.manager.dataSource.cellsBatchUpdate(() => {
+          for (const container of containers) {
+            const rowId = container.dataset.rowId;
+            const columnId = container.dataset.columnId;
+            if (rowId && columnId) {
+              container.column.valueSetFromString(rowId, '');
+            }
+          }
+        });
       } else {
         // single cell
         const container = this.selectionController.getCellContainer(

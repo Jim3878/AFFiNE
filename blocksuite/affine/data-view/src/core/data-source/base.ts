@@ -26,6 +26,8 @@ export interface DataSource {
     propertyId: string
   ): ReadonlySignal<unknown | undefined>;
   cellValueChange(rowId: string, propertyId: string, value: unknown): void;
+  /** nineday: runs many cell changes as one update (one transaction, one undo step). */
+  cellsBatchUpdate(update: () => void): void;
 
   rows$: ReadonlySignal<string[]>;
   rowAdd(InsertToPosition: InsertToPosition | number): string;
@@ -104,6 +106,9 @@ export interface DataSource {
 export const DataSourceScope = createScope('data-source');
 
 export abstract class DataSourceBase implements DataSource {
+  cellsBatchUpdate(update: () => void): void {
+    update();
+  }
   propertyTypeCanSet(propertyId: string): boolean {
     return !this.isFixedProperty(propertyId);
   }
