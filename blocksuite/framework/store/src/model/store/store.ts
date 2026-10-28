@@ -26,6 +26,7 @@ import {
   type PropsOfModel,
   type YBlock,
 } from '../block/index.js';
+import { SyncController } from '../block/sync-controller.js';
 import { DocCRUD } from './crud.js';
 import { StoreIdentifier } from './identifier.js';
 import { type Query, runQuery } from './query.js';
@@ -330,7 +331,8 @@ export class Store {
       console.error('cannot undo in readonly mode');
       return;
     }
-    this._history.undoManager.undo();
+    // NineDay: one signal update per changed prop, not one per changed row (see SyncController).
+    SyncController.deferPropUpdates(() => this._history.undoManager.undo());
   };
 
   /**
@@ -343,7 +345,7 @@ export class Store {
       console.error('cannot undo in readonly mode');
       return;
     }
-    this._history.undoManager.redo();
+    SyncController.deferPropUpdates(() => this._history.undoManager.redo());
   };
 
   /**

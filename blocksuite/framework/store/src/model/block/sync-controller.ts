@@ -24,6 +24,12 @@ import { internalPrimitives } from './zod.js';
  * It will also provide signals for block props.
  *
  */
+/** Props changed per block while `SyncController.deferPropUpdates` runs. */
+type DeferredProps = Map<
+  SyncController,
+  Map<string, { value: unknown; isLocal: boolean }>
+>;
+
 export class SyncController {
   private _byPassProxy: boolean = false;
 
@@ -87,26 +93,28 @@ export class SyncController {
   private readonly _stashed = new Set<string | number>();
 
   /**
-   * NineDay: props changed while `deferPropUpdates` runs. Each change of a nested prop (say one
-   * cell of a database's `cells`) converts the whole prop to a new signal value, so writing many
-   * cells one by one cost (cells) x (writes). Deferred, the signal is set once at the end.
+   * NineDay: props changed (in any block) while `deferPropUpdates` runs. Each change of a nested
+   * prop (say one cell of a database's `cells`) converts the whole prop to a new signal value, so
+   * writing or undoing many cells one by one cost (cells) x (writes): a 59-row table took 11 s to
+   * undo a cleared column. Deferred, each prop's signal is set once at the end.
    */
-  private _deferred: Map<string, { value: unknown; isLocal: boolean }> | null =
-    null;
+  private static _deferred: DeferredProps | null = null;
 
-  readonly deferPropUpdates = (fn: () => void) => {
-    if (this._deferred) {
+  static readonly deferPropUpdates = (fn: () => void) => {
+    if (SyncController._deferred) {
       fn();
       return;
     }
-    const deferred = new Map<string, { value: unknown; isLocal: boolean }>();
-    this._deferred = deferred;
+    const deferred: DeferredProps = new Map();
+    SyncController._deferred = deferred;
     try {
       fn();
     } finally {
-      this._deferred = null;
-      deferred.forEach(({ value, isLocal }, name) =>
-        this._propChanged(name, value, isLocal)
+      SyncController._deferred = null;
+      deferred.forEach((props, controller) =>
+        props.forEach(({ value, isLocal }, name) =>
+          controller._propChanged(name, value, isLocal)
+        )
       );
     }
   };
@@ -192,7 +200,7 @@ export class SyncController {
     model.yBlock = this.yBlock;
     model.stash = this.stash;
     model.pop = this.pop;
-    model.deferPropUpdates = this.deferPropUpdates;
+    model.deferPropUpdates = SyncController.deferPropUpdates;
     if (this.doc) {
       model.store = this.doc;
     }
@@ -256,9 +264,15 @@ export class SyncController {
   private _getPropsProxy(name: string, value: unknown) {
     return createYProxy(value, {
       onChange: (_, isLocal) => {
-        if (this._deferred) {
-          const previous = this._deferred.get(name);
-          this._deferred.set(name, {
+        const deferred = SyncController._deferred;
+        if (deferred) {
+          let props = deferred.get(this);
+          if (!props) {
+            props = new Map();
+            deferred.set(this, props);
+          }
+          const previous = props.get(name);
+          props.set(name, {
             value,
             isLocal: isLocal && (previous?.isLocal ?? true),
           });

@@ -133,6 +133,20 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   folded height and the minimum resize height use `syncedDocHeaderHeight()` instead of the fixed
   48px, and changing the size of a folded block resizes it. Auto clears the prop by assigning it
   inside `store.transact` (`updateBlock` skips `undefined`).
+- **Clearing a whole column** (`nineday.16`, `table/pc/controller/hotkeys.ts`,
+  `database/src/data-source.ts`, store `model/block/sync-controller.ts`): Delete on a selected
+  column wrote the cells one by one, and every write made the store rebuild the block's `cells`
+  signal (`y2Native` of the whole map) and every cell recompute: ~1 s for 59 rows × 18 columns.
+  Now the cells are found first and cleared through `DataSource.cellsBatchUpdate`: one
+  transaction (one undo step) inside the new `BlockModel.deferPropUpdates`, which sets the props
+  signals once at the end. It must wrap the transaction, not run inside it: Yjs reports the
+  changes when the transaction ends. Not preact `batch()` (the store writes a props signal back
+  to Yjs when its effect runs outside the store's mutex). Measured on a copy of the user's table
+  with a stable build: median ~950 ms → ~400 ms until painted. `nineday.17`: the deferral is
+  global (`SyncController.deferPropUpdates`, any block) and `store.undo()` / `redo()` run inside
+  it; undoing a cleared column of the user's real table took 11 s (each row's change rebuilt
+  `cells`, ~180 ms on real rich text), now one rebuild.
+  Profiling tip: serve the stable build with `Document-Policy: js-profiling` and use `new Profiler()`.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.
