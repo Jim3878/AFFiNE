@@ -114,6 +114,10 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   scroller's `scrollLeft` both ways, follows content width with a ResizeObserver (updated in the
   next frame to avoid a ResizeObserver loop), hides when nothing overflows, and the scroller's
   own scrollbar is hidden. Used by the database table view (`pc/`) and the simple table block.
+  `nineday.14` fixed jitter while scrolling: positions snap to device pixels, so a copied position
+  came back slightly different and its scroll event was copied back onto the element being scrolled,
+  pulling it to an older position. Now only differences of 1px or more are copied, and the scroll
+  event caused by our own copy is ignored.
 - **zh-Hant "Duplicate"** (`packages/frontend/i18n/src/resources/zh-Hant.json`, `nineday.12`):
   `com.affine.header.option.duplicate` was translated as 「製作替身」; now 「建立副本」.
 - **Page width "Default"** (`core/src/components/workspace-property-types/page-width.tsx`,
@@ -121,6 +125,14 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   viewer's default when unset, so once clicked a page could never follow the default again. A
   third option, Default (i18n `com.affine.page-properties.property.pageWidth.default`), clears
   the stored value (writes `null`; the doc db skips `undefined`).
+- **Embedded doc title size on canvas** (`nineday.15`): a synced doc on the edgeless canvas shows
+  its title in a small secondary header. Its toolbar now has a "Title size" menu next to the
+  scale menu (Auto, 16–128, or a typed size 8–200), stored on the block as `titleFontSize`
+  (`blocks/embed-doc/.../title-size.ts`, `configs/toolbar.ts`). A set size also makes the title
+  bold and primary (`core/.../edgeless-block-header/`). The header grows with the title, so the
+  folded height and the minimum resize height use `syncedDocHeaderHeight()` instead of the fixed
+  48px, and changing the size of a folded block resizes it. Auto clears the prop by assigning it
+  inside `store.transact` (`updateBlock` skips `undefined`).
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.

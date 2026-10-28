@@ -1,9 +1,14 @@
 import { Button, IconButton, Menu, MenuItem } from '@affine/component';
 import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
+import { useSignalValue } from '@affine/core/modules/doc-info/utils';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { stopPropagation } from '@affine/core/utils';
 import { useI18n } from '@affine/i18n';
-import { EmbedSyncedDocBlockComponent } from '@blocksuite/affine/blocks/embed-doc';
+import {
+  EmbedSyncedDocBlockComponent,
+  syncedDocHeaderHeight,
+  syncedDocTitleLineHeight,
+} from '@blocksuite/affine/blocks/embed-doc';
 import { isPeekable, peek } from '@blocksuite/affine/components/peek';
 import type { EmbedSyncedDocModel } from '@blocksuite/affine-model';
 import {
@@ -43,7 +48,9 @@ const ToggleButton = ({ model }: { model: EmbedSyncedDocModel }) => {
         model.props.preFoldHeight$.value = 0;
       } else {
         model.props.preFoldHeight$.value = h;
-        model.props.xywh$.value = `[${x},${y},${w},${styles.headerHeight * (model.props.scale ?? 1)}]`;
+        // NineDay: the header (the folded block) grows with the title size.
+        const headerHeight = syncedDocHeaderHeight(model.props.titleFontSize);
+        model.props.xywh$.value = `[${x},${y},${w},${headerHeight * (model.props.scale ?? 1)}]`;
       }
     });
   }, [model]);
@@ -73,6 +80,8 @@ const Title = ({ model }: { model: EmbedSyncedDocModel }) => {
       reference: true,
     })
   );
+  // NineDay: title size picked in the toolbar (unset: the default small title).
+  const titleFontSize = useSignalValue(model.props.titleFontSize$);
 
   return (
     <div
@@ -83,7 +92,20 @@ const Title = ({ model }: { model: EmbedSyncedDocModel }) => {
       <span className={styles.titleIcon}>
         <LinkedPageIcon />
       </span>
-      <span className={styles.embedSyncedDocTitle}>{title}</span>
+      <span
+        className={styles.embedSyncedDocTitle}
+        data-sized={!!titleFontSize}
+        style={
+          titleFontSize
+            ? {
+                fontSize: `${titleFontSize}px`,
+                lineHeight: `${syncedDocTitleLineHeight(titleFontSize)}px`,
+              }
+            : undefined
+        }
+      >
+        {title}
+      </span>
     </div>
   );
 };

@@ -56,6 +56,11 @@ export const embedSyncedDocTitle = style([
         color: cssVarV2('text/primary'),
         fontWeight: 500,
       },
+      // NineDay: a title enlarged in the toolbar is also bold and primary.
+      '&[data-sized="true"]': {
+        color: cssVarV2('text/primary'),
+        fontWeight: 600,
+      },
     },
   },
 ]);

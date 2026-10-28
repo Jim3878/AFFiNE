@@ -18,6 +18,11 @@ export type EmbedSyncedDocBlockProps = {
    * a.k.a the fourth number of the `xywh`
    */
   preFoldHeight?: number;
+  /**
+   * NineDay: font size (px) of the title in the edgeless header; unset keeps the
+   * default small secondary title.
+   */
+  titleFontSize?: number;
 } & ReferenceInfo &
   GfxCompatibleProps;
 

@@ -7,6 +7,7 @@ import { clamp } from '@blocksuite/global/gfx';
 import { GfxViewInteractionExtension } from '@blocksuite/std/gfx';
 
 import type { EmbedEdgelessSyncedDocBlockComponent } from '../embed-edgeless-synced-doc-block';
+import { syncedDocHeaderHeight } from '../title-size';
 import { calcSyncedDocFullHeight } from '../utils';
 
 export const EmbedSyncedDocInteraction =
@@ -32,10 +33,15 @@ export const EmbedSyncedDocInteraction =
         const initialScale = model.props.scale ?? 1;
         const initHeight = model.elementBound.h;
         const maxHeight = calcSyncedDocFullHeight(view);
+        // NineDay: the folded height is the header, which grows with the title size.
+        const minHeight = Math.max(
+          SYNCED_MIN_HEIGHT,
+          syncedDocHeaderHeight(model.props.titleFontSize)
+        );
 
         return {
           beforeResize: context => {
-            context.set({ maxHeight });
+            context.set({ maxHeight, minHeight });
           },
           onResizeStart: context => {
             context.default(context);

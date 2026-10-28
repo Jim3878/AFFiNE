@@ -51,6 +51,13 @@ import { keyed } from 'lit/directives/keyed.js';
 import { repeat } from 'lit/directives/repeat.js';
 
 import { EmbedSyncedDocBlockComponent } from '../embed-synced-doc-block';
+import {
+  SYNCED_DOC_DEFAULT_TITLE_SIZE,
+  SYNCED_DOC_TITLE_SIZE_MAX,
+  SYNCED_DOC_TITLE_SIZE_MIN,
+  SYNCED_DOC_TITLE_SIZES,
+  syncedDocHeaderHeight,
+} from '../title-size';
 const trackBaseProps = {
   category: 'linked doc',
   type: 'embed view',
@@ -467,6 +474,64 @@ const builtinSurfaceToolbarConfig = {
             @toggle=${onToggle}
             .format=${format}
             .sizeSignal=${scale$}
+          ></affine-size-dropdown-menu>`
+        )}`;
+      },
+    },
+    {
+      // NineDay: font size of the title in the header, like a shape's text.
+      id: 'f.title-font-size',
+      content(ctx) {
+        const model = ctx.getCurrentBlockByType(
+          EmbedSyncedDocBlockComponent
+        )?.model;
+        if (!model) return null;
+
+        const size$ = computed(
+          () =>
+            model.props.titleFontSize$.value ?? SYNCED_DOC_DEFAULT_TITLE_SIZE
+        );
+        const onSelect = (e: CustomEvent<number>) => {
+          e.stopPropagation();
+
+          const picked = e.detail;
+          const titleFontSize =
+            picked === SYNCED_DOC_DEFAULT_TITLE_SIZE
+              ? undefined
+              : Math.min(
+                  SYNCED_DOC_TITLE_SIZE_MAX,
+                  Math.max(SYNCED_DOC_TITLE_SIZE_MIN, picked)
+                );
+          if (titleFontSize === (model.props.titleFontSize ?? undefined))
+            return;
+
+          // Set the props directly: updateBlock skips undefined values, so it
+          // could not clear the size ("Auto").
+          ctx.store.captureSync();
+          ctx.store.transact(() => {
+            model.props.titleFontSize = titleFontSize;
+            // A folded block is as tall as its header, which follows the title.
+            if (model.isFolded) {
+              const bounds = Bound.deserialize(model.xywh);
+              bounds.h =
+                syncedDocHeaderHeight(titleFontSize) * (model.props.scale ?? 1);
+              model.xywh = bounds.serialize();
+            }
+          });
+        };
+        const format = (value: number) =>
+          value === SYNCED_DOC_DEFAULT_TITLE_SIZE ? 'Auto' : `${value}`;
+
+        return html`${keyed(
+          model,
+          html`<affine-size-dropdown-menu
+            @select=${onSelect}
+            .label=${'Title size'}
+            .sizes=${SYNCED_DOC_TITLE_SIZES}
+            .format=${format}
+            .minSize=${SYNCED_DOC_DEFAULT_TITLE_SIZE}
+            .maxSize=${SYNCED_DOC_TITLE_SIZE_MAX}
+            .sizeSignal=${size$}
           ></affine-size-dropdown-menu>`
         )}`;
       },
