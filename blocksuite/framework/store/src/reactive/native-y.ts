@@ -39,6 +39,8 @@ export function native2Y<T>(
   return transform(value, value) as Native2Y<T>;
 }
 
+const textOfYText = new WeakMap<YText, Text>();
+
 export function y2Native(
   yAbstract: unknown,
   { deep = true, transform = x => x }: TransformOptions = {}
@@ -48,7 +50,16 @@ export function y2Native(
     return transform(data, yAbstract);
   }
   if (yAbstract instanceof YText) {
-    const data = new Text(yAbstract);
+    // NineDay: one Text per Y.Text. A Text reads all deltas and adds a Y.Text observer that is
+    // never removed, and y2Native runs on a whole prop after every nested change: a database's
+    // `cells` made a new Text (and observer) for every rich-text cell on each edit, so every cell
+    // re-rendered and observers piled up. The Text keeps itself current through that observer.
+    // Only Y.Texts already in a doc: a Text of a detached one starts empty.
+    let data = textOfYText.get(yAbstract);
+    if (!data) {
+      data = new Text(yAbstract);
+      if (yAbstract.doc) textOfYText.set(yAbstract, data);
+    }
     return transform(data, yAbstract);
   }
   if (yAbstract instanceof YArray) {

@@ -145,7 +145,10 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   with a stable build: median ~950 ms → ~400 ms until painted. `nineday.17`: the deferral is
   global (`SyncController.deferPropUpdates`, any block) and `store.undo()` / `redo()` run inside
   it; undoing a cleared column of the user's real table took 11 s (each row's change rebuilt
-  `cells`, ~180 ms on real rich text), now one rebuild.
+  `cells`, ~180 ms on real rich text), now one rebuild. `nineday.18`: `y2Native` reuses one
+  `Text` per `Y.Text` (`reactive/native-y.ts`). Each rebuild of `cells` made a new `Text` for every
+  rich-text cell, and a `Text` reads all deltas and adds a `Y.Text` observer that is never removed:
+  every cell re-rendered on any change and observers piled up for the life of the page.
   Profiling tip: serve the stable build with `Document-Policy: js-profiling` and use `new Profiler()`.
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
