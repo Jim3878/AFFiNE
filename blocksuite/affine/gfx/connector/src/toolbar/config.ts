@@ -48,6 +48,7 @@ import {
   EndPointDiamondIcon,
   EndPointTriangleIcon,
   FlipDirectionIcon,
+  ResetIcon,
   StartPointArrowIcon,
   StartPointCircleIcon,
   StartPointDiamondIcon,
@@ -331,6 +332,32 @@ export const connectorToolbarConfig = {
             });
           },
         },
+        {
+          // NineDay: drop the anchors and handles set on a curve.
+          id: 'e.reset-curve',
+          icon: ResetIcon(),
+          tooltip: 'Reset curve',
+          when(ctx) {
+            return ctx
+              .getSurfaceModelsByType(ConnectorElementModel)
+              .some(hasCurveEdits);
+          },
+          run(ctx) {
+            const models = ctx
+              .getSurfaceModelsByType(ConnectorElementModel)
+              .filter(hasCurveEdits);
+            if (!models.length) return;
+
+            ctx.store.captureSync();
+            ctx.store.transact(() => {
+              for (const model of models) {
+                model.curveAnchors = undefined;
+                model.curveStartOut = undefined;
+                model.curveEndIn = undefined;
+              }
+            });
+          },
+        },
       ],
     },
     {
@@ -412,6 +439,15 @@ export const connectorToolbarConfig = {
 
   when: ctx => ctx.getSurfaceModelsByType(ConnectorElementModel).length > 0,
 } as const satisfies ToolbarModuleConfig;
+
+function hasCurveEdits(model: ConnectorElementModel) {
+  return (
+    model.mode === ConnectorMode.Curve &&
+    Boolean(
+      model.curveAnchors?.length || model.curveStartOut || model.curveEndIn
+    )
+  );
+}
 
 function updateModelsWith<
   T extends keyof Omit<ConnectorElementProps, keyof ConnectorLabelProps>,

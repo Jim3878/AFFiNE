@@ -3,6 +3,8 @@ import {
   type BrushElementModel,
   type Connection,
   ConnectorElementModel,
+  connectorFrameToPoint,
+  connectorFrameToVec,
   ConnectorMode,
   GroupElementModel,
   type LocalConnectorElementModel,
@@ -13,8 +15,7 @@ import type { IBound, IVec, IVec3 } from '@blocksuite/global/gfx';
 import {
   almostEqual,
   Bound,
-  getBezierCurveBoundingBox,
-  getBezierParameters,
+  getBezierPathBoundingBox,
   getBoundFromPoints,
   getBoundWithRotation,
   getPointFromBoundsWithRotation,
@@ -1193,7 +1194,7 @@ export class ConnectorPathGenerator extends PathGenerator {
     const points = path ?? instance._generateConnectorPath(connector) ?? [];
     const bound =
       connector.mode === ConnectorMode.Curve
-        ? getBezierCurveBoundingBox(getBezierParameters(points))
+        ? getBezierPathBoundingBox(points)
         : getBoundFromPoints(points);
     const relativePoints = points.map((p: PointLocation) => {
       return p.setVec(Vec.sub(p, [bound.x, bound.y]));
@@ -1320,16 +1321,21 @@ export class ConnectorPathGenerator extends PathGenerator {
 
       if (!startPoint || !endPoint) return [];
 
+      // NineDay: the handles at the ends aim at the neighbouring anchor.
+      const anchors = this._getCurveAnchors(connector, startPoint, endPoint);
+      const next = anchors[0] ?? endPoint;
+      const prev = anchors[anchors.length - 1] ?? startPoint;
+
       if (source.id) {
         const startTangentVertical = Vec.rot(startPoint.tangent, -Math.PI / 2);
         startPoint.out = isVecZero(startTangentVertical)
-          ? Vec.mul(Vec.per(Vec.normalize(Vec.sub(startPoint, endPoint))), 20)
+          ? Vec.mul(Vec.per(Vec.normalize(Vec.sub(startPoint, next))), 20)
           : Vec.mul(
               startTangentVertical,
               Math.max(
                 100,
                 Math.abs(
-                  Vec.pry(Vec.sub(endPoint, startPoint), startTangentVertical)
+                  Vec.pry(Vec.sub(next, startPoint), startTangentVertical)
                 ) / 3
               )
             );
@@ -1337,36 +1343,76 @@ export class ConnectorPathGenerator extends PathGenerator {
       if (target.id) {
         const endTangentVertical = Vec.rot(endPoint.tangent, -Math.PI / 2);
         endPoint.in = isVecZero(endTangentVertical)
-          ? Vec.mul(Vec.per(Vec.normalize(Vec.sub(endPoint, startPoint))), 20)
+          ? Vec.mul(Vec.per(Vec.normalize(Vec.sub(endPoint, prev))), 20)
           : Vec.mul(
               endTangentVertical,
               Math.max(
                 100,
-                Math.abs(
-                  Vec.pry(Vec.sub(startPoint, endPoint), endTangentVertical)
-                ) / 3
+                Math.abs(Vec.pry(Vec.sub(prev, endPoint), endTangentVertical)) /
+                  3
               )
             );
       }
-      return [startPoint, endPoint];
+      return this._applyCurveHandles(connector, startPoint, endPoint, anchors);
     } else {
       startPoint = this._getConnectionPoint(connector, 'source');
       endPoint = this._getConnectionPoint(connector, 'target');
 
       if (!startPoint || !endPoint) return [];
 
+      const anchors = this._getCurveAnchors(connector, startPoint, endPoint);
+      const next = anchors[0] ?? endPoint;
+      const prev = anchors[anchors.length - 1] ?? startPoint;
+
       if (
-        Math.abs(endPoint[0] - startPoint[0]) >
-        Math.abs(endPoint[1] - startPoint[1])
+        Math.abs(next[0] - startPoint[0]) > Math.abs(next[1] - startPoint[1])
       ) {
-        startPoint.out = [Vec.mul(Vec.sub(endPoint, startPoint), 2 / 3)[0], 0];
-        endPoint.in = [Vec.mul(Vec.sub(startPoint, endPoint), 2 / 3)[0], 0];
+        startPoint.out = [Vec.mul(Vec.sub(next, startPoint), 2 / 3)[0], 0];
       } else {
-        startPoint.out = [0, Vec.mul(Vec.sub(endPoint, startPoint), 2 / 3)[1]];
-        endPoint.in = [0, Vec.mul(Vec.sub(startPoint, endPoint), 2 / 3)[1]];
+        startPoint.out = [0, Vec.mul(Vec.sub(next, startPoint), 2 / 3)[1]];
       }
-      return [startPoint, endPoint];
+      if (Math.abs(endPoint[0] - prev[0]) > Math.abs(endPoint[1] - prev[1])) {
+        endPoint.in = [Vec.mul(Vec.sub(prev, endPoint), 2 / 3)[0], 0];
+      } else {
+        endPoint.in = [0, Vec.mul(Vec.sub(prev, endPoint), 2 / 3)[1]];
+      }
+      return this._applyCurveHandles(connector, startPoint, endPoint, anchors);
     }
+  }
+
+  /** NineDay: the curve's anchors as points, from the frame of start → end. */
+  private _getCurveAnchors(
+    connector: ConnectorElementModel | LocalConnectorElementModel,
+    start: PointLocation,
+    end: PointLocation
+  ) {
+    const anchors =
+      'curveAnchors' in connector ? (connector.curveAnchors ?? []) : [];
+    return anchors.map(
+      ({ position, in: inVec, out }) =>
+        new PointLocation(
+          connectorFrameToPoint(start, end, position),
+          [0, 0],
+          connectorFrameToVec(start, end, inVec),
+          connectorFrameToVec(start, end, out)
+        )
+    );
+  }
+
+  /** NineDay: handles set by the user replace the automatic ones at the ends. */
+  private _applyCurveHandles(
+    connector: ConnectorElementModel | LocalConnectorElementModel,
+    start: PointLocation,
+    end: PointLocation,
+    anchors: PointLocation[]
+  ) {
+    if ('curveStartOut' in connector && connector.curveStartOut) {
+      start.out = connectorFrameToVec(start, end, connector.curveStartOut);
+    }
+    if ('curveEndIn' in connector && connector.curveEndIn) {
+      end.in = connectorFrameToVec(start, end, connector.curveEndIn);
+    }
+    return [start, ...anchors, end];
   }
 
   private _generateStraightConnectorPath(

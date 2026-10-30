@@ -156,6 +156,78 @@ export function getBezierParameters(
   return [points[0], points[0].absOut, points[1].absIn, points[1]];
 }
 
+/**
+ * NineDay: a curve path can go through anchors, one cubic segment between each
+ * pair of consecutive points (`absOut` of the first, `absIn` of the second).
+ * A path of 0 or 1 points is one degenerate segment, like `getBezierParameters`.
+ */
+export function getBezierSegments(
+  points: PointLocation[]
+): BezierCurveParameters[] {
+  if (points.length < 2) return [getBezierParameters(points)];
+  const segments: BezierCurveParameters[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    segments.push(getBezierParameters([points[i], points[i + 1]]));
+  }
+  return segments;
+}
+
+/**
+ * Time along a multi-segment path: [0, 1] over the whole path, each segment
+ * taking an equal share. Returns the segment and the time inside it.
+ */
+function pathTimeToSegment(count: number, t: number) {
+  const scaled = Math.min(Math.max(t, 0), 1) * count;
+  const index = Math.min(Math.floor(scaled), count - 1);
+  return { index, t: scaled - index };
+}
+
+export function getBezierPathPoint(points: PointLocation[], t: number) {
+  const segments = getBezierSegments(points);
+  const { index, t: segmentT } = pathTimeToSegment(segments.length, t);
+  return getBezierPoint(segments[index], segmentT);
+}
+
+export function getBezierPathTangent(points: PointLocation[], t: number) {
+  const segments = getBezierSegments(points);
+  const { index, t: segmentT } = pathTimeToSegment(segments.length, t);
+  return getBezierTangent(segments[index], segmentT);
+}
+
+/** Nearest point on a multi-segment path, with its time along the whole path. */
+export function getBezierPathNearest(points: PointLocation[], point: IVec) {
+  const segments = getBezierSegments(points);
+  let best = { t: 0, point: segments[0][0] as IVec, dist: Infinity };
+  segments.forEach((segment, index) => {
+    const t = getBezierNearestTime(segment, point);
+    const p = getBezierPoint(segment, t);
+    if (!p) return;
+    const dist = Vec.dist2(p, point);
+    if (dist < best.dist) {
+      best = { t: (index + t) / segments.length, point: p, dist };
+    }
+  });
+  return { t: best.t, point: best.point };
+}
+
+export function getBezierPathBoundingBox(points: PointLocation[]) {
+  return getBezierSegments(points)
+    .map(getBezierCurveBoundingBox)
+    .reduce((acc, bound) => acc.unite(bound));
+}
+
+/** Points along a multi-segment path, `perSegment` + 1 per segment. */
+export function sampleBezierPath(points: PointLocation[], perSegment = 16) {
+  const samples: IVec[] = [];
+  getBezierSegments(points).forEach((segment, index) => {
+    for (let i = index === 0 ? 0 : 1; i <= perSegment; i++) {
+      const p = getBezierPoint(segment, i / perSegment);
+      if (p) samples.push(p);
+    }
+  });
+  return samples;
+}
+
 // https://stackoverflow.com/questions/2587751/an-algorithm-to-find-bounding-box-of-closed-bezier-curves
 export function getBezierCurveBoundingBox(values: BezierCurveParameters) {
   const [start, controlPoint1, controlPoint2, end] = values;
@@ -394,14 +466,16 @@ function roots(points: BezierCurveParameters, line: IVec[]) {
 
 export function curveIntersects(path: PointLocation[], line: [IVec, IVec]) {
   const { minX, maxX, minY, maxY } = Bound.fromPoints(line);
-  const points = getBezierParameters(path);
-  const intersectedPoints = roots(points, line)
-    .map(t => getBezierPoint(points, t))
-    .filter(point =>
-      point
-        ? between(point[0], minX, maxX) && between(point[1], minY, maxY)
-        : false
-    )
-    .map(point => new PointLocation(point!));
+  // NineDay: every segment of a path through anchors.
+  const intersectedPoints = getBezierSegments(path).flatMap(points =>
+    roots(points, line)
+      .map(t => getBezierPoint(points, t))
+      .filter(point =>
+        point
+          ? between(point[0], minX, maxX) && between(point[1], minY, maxY)
+          : false
+      )
+      .map(point => new PointLocation(point!))
+  );
   return intersectedPoints.length > 0 ? intersectedPoints : null;
 }

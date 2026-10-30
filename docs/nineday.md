@@ -150,6 +150,25 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   Extensions get `fromCenter` in the resize move context; the snap manager uses it to halve the
   extent when turning a snap distance into a scale. The linked doc card's minimum width
   (nineday.19) keeps the center too when it clamps an Alt resize.
+- **Curve connector anchors and handles** (`nineday.21`): a selected curve connector shows the
+  Bezier handles of its ends, its anchors with their handle pairs, and a "+" in the middle of
+  every segment (`gfx/connector/src/components/connector-handle.ts`). Dragging a "+" adds an
+  anchor (one undo step with its placing), dragging an anchor or a handle edits it, a handle
+  turns the opposite one of its anchor with it (same length) unless Alt is held, and a double
+  click removes an anchor. "Reset curve" in the toolbar (`toolbar/config.ts`) clears it all.
+  Stored on the connector as `curveAnchors`, `curveStartOut`, `curveEndIn`
+  (`model/.../connector/connector.ts`), in the frame of the start → end line
+  (`connectorFrameToPoint` etc.: `[along, across]` as multiples of that vector and of it turned
+  90°), so the curve stretches and turns with the connected elements. Only the Curve mode uses
+  them; other modes keep them for when the mode is switched back. The path generator
+  (`connector-manager.ts`) puts the anchors between the ends, aims the automatic end handles at
+  the neighbouring anchor and lets the stored ones replace them; the watcher regenerates the
+  path when these fields change. A curve path of n points is n − 1 cubic segments:
+  `getBezierSegments`, `getBezierPathPoint` / `Nearest` / `BoundingBox`, `sampleBezierPath`
+  (global `gfx/curve.ts`, unit tests in `curve.unit.spec.ts`) replace the single-segment calls
+  for hit tests, label position (time spread evenly over the segments), bounds, line
+  intersections, rough rendering and end arrow tangents. A curve is now inside a selection
+  box when any point along it is, not only one of its ends.
 - **Clearing a whole column** (`nineday.16`, `table/pc/controller/hotkeys.ts`,
   `database/src/data-source.ts`, store `model/block/sync-controller.ts`): Delete on a selected
   column wrote the cells one by one, and every write made the store rebuild the block's `cells`

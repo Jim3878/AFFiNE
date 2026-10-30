@@ -62,7 +62,13 @@ export const connectorWatcher: SurfaceMiddleware = (
       if (
         'type' in element &&
         element.type === 'connector' &&
-        (props['mode'] !== undefined || props['target'] || props['source'])
+        (props['mode'] !== undefined ||
+          props['target'] ||
+          props['source'] ||
+          // NineDay: anchors and handles of a curve (may be cleared to undefined).
+          'curveAnchors' in props ||
+          'curveStartOut' in props ||
+          'curveEndIn' in props)
       ) {
         addToUpdateList(element as ConnectorElementModel);
       }

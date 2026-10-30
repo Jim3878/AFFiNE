@@ -20,10 +20,7 @@ import {
   type PointStyle,
 } from '@blocksuite/affine-model';
 import { getAffinePlaceholderFillColor } from '@blocksuite/affine-shared/theme';
-import {
-  getBezierParameters,
-  type PointLocation,
-} from '@blocksuite/global/gfx';
+import { getBezierSegments, type PointLocation } from '@blocksuite/global/gfx';
 import { deltaInsertsToChunks } from '@blocksuite/std/inline';
 
 import { isConnectorWithLabel } from '../connector-manager';
@@ -148,11 +145,16 @@ function renderPoints(
       strokeWidth,
     };
     if (curve) {
-      const b = getBezierParameters(points);
-      rc.path(
-        `M${b[0][0]},${b[0][1]} C${b[1][0]},${b[1][1]} ${b[2][0]},${b[2][1]} ${b[3][0]},${b[3][1]}`,
-        options
-      );
+      // NineDay: one cubic command per segment of a curve through anchors.
+      const segments = getBezierSegments(points);
+      const start = segments[0][0];
+      const curves = segments
+        .map(
+          b =>
+            `C${b[1][0]},${b[1][1]} ${b[2][0]},${b[2][1]} ${b[3][0]},${b[3][1]}`
+        )
+        .join(' ');
+      rc.path(`M${start[0]},${start[1]} ${curves}`, options);
     } else {
       rc.linearPath(points as unknown as [number, number][], options);
     }

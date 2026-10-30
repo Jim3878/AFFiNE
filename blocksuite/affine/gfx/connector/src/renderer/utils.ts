@@ -84,6 +84,15 @@ export function getPointWithTangent(
       endPoint === 'Rear'
         ? Vec.tangent(anchorPoint, pointToAnchor)
         : Vec.tangent(pointToAnchor, anchorPoint);
+  } else if (points.length > 2) {
+    // NineDay: a curve through anchors ends with its own segment.
+    tangent =
+      endPoint === 'Rear'
+        ? getBezierTangent(getBezierParameters([pointToAnchor, anchorPoint]), 1)
+        : getBezierTangent(
+            getBezierParameters([anchorPoint, pointToAnchor]),
+            0
+          );
   } else {
     tangent =
       endPoint === 'Rear'

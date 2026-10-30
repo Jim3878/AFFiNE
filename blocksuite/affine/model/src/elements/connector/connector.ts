@@ -2,14 +2,13 @@ import type { IVec, SerializedXYWH, XYWH } from '@blocksuite/global/gfx';
 import {
   Bound,
   curveIntersects,
-  getBezierNearestPoint,
-  getBezierNearestTime,
-  getBezierParameters,
-  getBezierPoint,
+  getBezierPathNearest,
+  getBezierPathPoint,
   linePolylineIntersects,
   PointLocation,
   Polyline,
   polyLineNearestPoint,
+  sampleBezierPath,
   Vec,
 } from '@blocksuite/global/gfx';
 import type {
@@ -52,6 +51,70 @@ export type Connection = {
   id?: string;
   position?: [number, number];
 };
+
+/**
+ * NineDay: anchors and handles of a curve connector are stored in the frame of
+ * the line from its start to its end point: `[along, across]`, where `along` is
+ * a multiple of the start→end vector and `across` a multiple of that vector
+ * turned 90° clockwise. So they follow the ends when the connected elements
+ * move: the curve stretches and turns with them.
+ */
+export type ConnectorFrameVec = [number, number];
+
+export type ConnectorCurveAnchor = {
+  position: ConnectorFrameVec;
+  /** Handles, relative to the anchor. */
+  in: ConnectorFrameVec;
+  out: ConnectorFrameVec;
+};
+
+/** Below this start→end distance the frame uses a fixed size instead. */
+const MIN_FRAME_LENGTH = 1;
+
+function connectorFrame(start: IVec, end: IVec) {
+  let u = Vec.sub(end, start);
+  if (Vec.len(u) < MIN_FRAME_LENGTH) u = [MIN_FRAME_LENGTH, 0];
+  const v: IVec = [-u[1], u[0]];
+  return { u, v };
+}
+
+/** A frame vector as a model vector (a direction, not a position). */
+export function connectorFrameToVec(
+  start: IVec,
+  end: IVec,
+  [a, b]: ConnectorFrameVec
+): IVec {
+  const { u, v } = connectorFrame(start, end);
+  return [u[0] * a + v[0] * b, u[1] * a + v[1] * b];
+}
+
+/** A model vector (a direction, not a position) in the frame. */
+export function vecToConnectorFrame(
+  start: IVec,
+  end: IVec,
+  vec: IVec
+): ConnectorFrameVec {
+  const { u, v } = connectorFrame(start, end);
+  // u and v are perpendicular and the same length.
+  const len2 = Vec.len2(u);
+  return [Vec.dpr(vec, u) / len2, Vec.dpr(vec, v) / len2];
+}
+
+export function connectorFrameToPoint(
+  start: IVec,
+  end: IVec,
+  position: ConnectorFrameVec
+): IVec {
+  return Vec.add(start, connectorFrameToVec(start, end, position));
+}
+
+export function pointToConnectorFrame(
+  start: IVec,
+  end: IVec,
+  point: IVec
+): ConnectorFrameVec {
+  return vecToConnectorFrame(start, end, Vec.sub(point, start));
+}
 
 export const getConnectorModeName = (mode: ConnectorMode) => {
   return {
@@ -101,6 +164,11 @@ export type ConnectorElementProps = BaseElementProps & {
 
   frontEndpointStyle?: PointStyle;
   rearEndpointStyle?: PointStyle;
+
+  // NineDay: anchors and handles of a curve.
+  curveAnchors?: ConnectorCurveAnchor[];
+  curveStartOut?: ConnectorFrameVec;
+  curveEndIn?: ConnectorFrameVec;
 } & ConnectorLabelProps;
 
 export class ConnectorElementModel extends GfxPrimitiveElementModel<ConnectorElementProps> {
@@ -140,8 +208,13 @@ export class ConnectorElementModel extends GfxPrimitiveElementModel<ConnectorEle
   }
 
   override containsBound(bounds: Bound) {
+    // NineDay: a curve is tested along its whole length, not only its ends.
+    const points =
+      this.mode === ConnectorMode.Curve && this.absolutePath.length > 1
+        ? sampleBezierPath(this.absolutePath)
+        : this.absolutePath;
     return (
-      this.absolutePath.some(point => bounds.containsPoint(point)) ||
+      points.some(point => bounds.containsPoint(point)) ||
       (this.hasLabel() &&
         Bound.fromXYWH(this.labelXYWH!).points.some(p =>
           bounds.containsPoint(p)
@@ -193,13 +266,8 @@ export class ConnectorElementModel extends GfxPrimitiveElementModel<ConnectorEle
       return Polyline.nearestPoint(points, point);
     }
 
-    const b = getBezierParameters(path);
-    const t = getBezierNearestTime(b, point);
-    const p = getBezierPoint(b, t);
-    if (p) return p;
-
-    const { x, y } = this;
-    return [x, y];
+    // NineDay: every segment of a curve through anchors.
+    return getBezierPathNearest(path, point).point;
   }
 
   /**
@@ -241,8 +309,7 @@ export class ConnectorElementModel extends GfxPrimitiveElementModel<ConnectorEle
       return pl / fl;
     }
 
-    const b = getBezierParameters(path);
-    return getBezierNearestTime(b, point);
+    return getBezierPathNearest(path, point).t;
   }
 
   /**
@@ -278,8 +345,7 @@ export class ConnectorElementModel extends GfxPrimitiveElementModel<ConnectorEle
       return [x + w / 2, y + h / 2];
     }
 
-    const b = getBezierParameters(path);
-    const point = getBezierPoint(b, offsetDistance);
+    const point = getBezierPathPoint(path, offsetDistance);
     if (point) return point;
     return [x + w / 2, y + h / 2];
   }
@@ -319,7 +385,7 @@ export class ConnectorElementModel extends GfxPrimitiveElementModel<ConnectorEle
 
     const point =
       mode === ConnectorMode.Curve
-        ? getBezierNearestPoint(getBezierParameters(path), currentPoint)
+        ? getBezierPathNearest(path, currentPoint).point
         : polyLineNearestPoint(path, currentPoint);
 
     if (!point) {
@@ -421,6 +487,21 @@ export class ConnectorElementModel extends GfxPrimitiveElementModel<ConnectorEle
 
   @local()
   accessor absolutePath: PointLocation[] = [];
+
+  /**
+   * NineDay: anchors of a curve between its ends, in the frame of the line from
+   * start to end (see `ConnectorFrameVec`). Kept but unused in other modes.
+   */
+  @field()
+  accessor curveAnchors: ConnectorCurveAnchor[] | undefined = undefined;
+
+  /** NineDay: handle of a curve's end point, in the frame; unset: automatic. */
+  @field()
+  accessor curveEndIn: ConnectorFrameVec | undefined = undefined;
+
+  /** NineDay: handle of a curve's start point, in the frame; unset: automatic. */
+  @field()
+  accessor curveStartOut: ConnectorFrameVec | undefined = undefined;
 
   @field('None' as PointStyle)
   accessor frontEndpointStyle!: PointStyle;
