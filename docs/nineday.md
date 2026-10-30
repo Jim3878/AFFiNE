@@ -140,6 +140,16 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   handles now change only its width (corners keep the ratio), down to the width of its style at
   the current scale, so a card widened too far can be narrowed again. Switching between Card
   view and Embed view keeps the size.
+- **Resize from the center with Alt** (`nineday.20`, std `gfx/interactivity/resize/manager.ts`):
+  dragging a resize handle with Alt held keeps the center fixed instead of the opposite side
+  (any handle, one or several elements, rotated or not; Alt + Shift also locks the ratio).
+  `getCoordsTransform(bound, handle, fromCenter)` puts the pivot at the center and the handle
+  half a size away (`extent`); `startResize` picks the transform on every move, and pressing or
+  releasing Alt without moving re-applies the last pointer position. Alt key events are swallowed
+  while resizing (and the release right after), so the browser menu does not take focus.
+  Extensions get `fromCenter` in the resize move context; the snap manager uses it to halve the
+  extent when turning a snap distance into a scale. The linked doc card's minimum width
+  (nineday.19) keeps the center too when it clamps an Alt resize.
 - **Clearing a whole column** (`nineday.16`, `table/pc/controller/hotkeys.ts`,
   `database/src/data-source.ts`, store `model/block/sync-controller.ts`): Delete on a selected
   column wrote the cells one by one, and every write made the store rebuild the block's `cells`

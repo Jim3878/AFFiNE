@@ -49,6 +49,8 @@ export interface OptionResize {
     currentHandlePos: IVec;
 
     lockRatio: boolean;
+    /** NineDay: scaling around the center (Alt held), not the opposite side. */
+    fromCenter: boolean;
   }) => { scaleX: number; scaleY: number };
   onResizeUpdate: (payload: {
     lockRatio: boolean;
@@ -106,12 +108,29 @@ export class ResizeController {
     this.gfx = option.gfx;
   }
 
-  getCoordsTransform(originalBound: IBound, handle: ResizeHandle) {
+  /**
+   * NineDay: with `fromCenter` the pivot is the center of the bound instead of
+   * the side opposite the handle, so the handle is half a size away from it.
+   */
+  getCoordsTransform(
+    originalBound: IBound,
+    handle: ResizeHandle,
+    fromCenter = false
+  ) {
     const { x: xSign, y: ySign } = this.getHandleSign(handle);
-    const pivot = new DOMPoint(
-      originalBound.x + ((-xSign + 1) / 2) * originalBound.w,
-      originalBound.y + ((-ySign + 1) / 2) * originalBound.h
-    );
+    const pivot = fromCenter
+      ? new DOMPoint(
+          originalBound.x + originalBound.w / 2,
+          originalBound.y + originalBound.h / 2
+        )
+      : new DOMPoint(
+          originalBound.x + ((-xSign + 1) / 2) * originalBound.w,
+          originalBound.y + ((-ySign + 1) / 2) * originalBound.h
+        );
+    // Distance from the pivot to the handle, in local coordinates.
+    const extent = fromCenter
+      ? { w: originalBound.w / 2, h: originalBound.h / 2 }
+      : { w: originalBound.w, h: originalBound.h };
     const toLocalM = new DOMMatrix().translate(-pivot.x, -pivot.y);
     const toLocalRotatedM = new DOMMatrix()
       .translate(-pivot.x, -pivot.y)
@@ -130,14 +149,13 @@ export class ResizeController {
     const toModel = (p: DOMPoint) =>
       p.matrixTransform(toLocalRotatedM.inverse());
 
-    const handlePos = toModel(
-      new DOMPoint(originalBound.w * xSign, originalBound.h * ySign)
-    );
+    const handlePos = toModel(new DOMPoint(extent.w * xSign, extent.h * ySign));
 
     return {
       xSign,
       ySign,
       originalBound,
+      extent,
       toLocalM,
       toLocalRotatedM,
       toLocal,
@@ -152,14 +170,14 @@ export class ResizeController {
     handleStartPos: IVec,
     lockRatio: boolean
   ) {
-    const { originalBound, xSign, ySign, toModel, toLocal } = transform;
+    const { extent, xSign, ySign, toModel, toLocal } = transform;
     const currentPos = toLocal(
       new DOMPoint(handleStartPos[0] + delta.dx, handleStartPos[1] + delta.dy),
       true
     );
 
-    let scaleX = xSign ? currentPos.x / (originalBound.w * xSign) : 1;
-    let scaleY = ySign ? currentPos.y / (originalBound.h * ySign) : 1;
+    let scaleX = xSign ? currentPos.x / (extent.w * xSign) : 1;
+    let scaleY = ySign ? currentPos.y / (extent.h * ySign) : 1;
 
     if (lockRatio) {
       const min = Math.min(Math.abs(scaleX), Math.abs(scaleY));
@@ -168,10 +186,7 @@ export class ResizeController {
     }
 
     const finalHandlePos = toModel(
-      new DOMPoint(
-        originalBound.w * xSign * scaleX,
-        originalBound.h * ySign * scaleY
-      )
+      new DOMPoint(extent.w * xSign * scaleX, extent.h * ySign * scaleY)
     );
 
     return {
@@ -230,13 +245,34 @@ export class ResizeController {
       event.clientX,
       event.clientY,
     ]);
-    const transform = this.getCoordsTransform(originalBound, handle);
+    const sideTransform = this.getCoordsTransform(originalBound, handle);
+    // NineDay: holding Alt scales around the center; it can be pressed or
+    // released in the middle of a drag.
+    const centerTransform = this.getCoordsTransform(
+      originalBound,
+      handle,
+      true
+    );
     const handleSign = {
-      x: transform.xSign,
-      y: transform.ySign,
+      x: sideTransform.xSign,
+      y: sideTransform.ySign,
     };
 
-    const onPointerMove = (e: PointerEvent) => {
+    type PointerState = Pick<
+      PointerEvent,
+      'clientX' | 'clientY' | 'altKey' | 'shiftKey'
+    >;
+    let lastPointer: PointerState | null = null;
+
+    const onPointerMove = (e: PointerState) => {
+      lastPointer = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+      };
+      const fromCenter = e.altKey;
+      const transform = fromCenter ? centerTransform : sideTransform;
       const currPt = this.gfx.viewport.toModelCoordFromClientCoord([
         e.clientX,
         e.clientY,
@@ -270,6 +306,7 @@ export class ResizeController {
         currentHandlePos,
 
         lockRatio: shouldLockRatio,
+        fromCenter,
       });
       const scaleInfo = this.getScaleMatrix(scale, shouldLockRatio);
 
@@ -293,25 +330,49 @@ export class ResizeController {
       }
     };
 
+    // NineDay: pressing or releasing Alt without moving the pointer updates the
+    // resize too. Alt is not passed on while resizing, so that releasing it
+    // does not focus the browser's menu.
+    const onAltKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Alt') return;
+      e.preventDefault();
+      if (lastPointer && lastPointer.altKey !== e.altKey) {
+        onPointerMove({ ...lastPointer, altKey: e.altKey });
+      }
+    };
+
     onResizeStart?.({
       handleSign,
-      handlePos: transform.handlePos,
+      handlePos: sideTransform.handlePos,
       data: elements.map(model => ({ model })),
     });
 
     const onPointerUp = () => {
       this.host.removeEventListener('pointermove', onPointerMove);
       this.host.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onAltKey, true);
+      window.removeEventListener('keyup', onAltKey, true);
+      // Alt is usually released after the pointer: swallow that release too.
+      if (lastPointer?.altKey) {
+        const onAltUp = (e: KeyboardEvent) => {
+          if (e.key !== 'Alt') return;
+          e.preventDefault();
+          window.removeEventListener('keyup', onAltUp, true);
+        };
+        window.addEventListener('keyup', onAltUp, true);
+      }
 
       onResizeEnd?.({
         handleSign,
-        handlePos: transform.handlePos,
+        handlePos: sideTransform.handlePos,
         data: elements.map(model => ({ model })),
       });
     };
 
     this.host.addEventListener('pointermove', onPointerMove);
     this.host.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('keydown', onAltKey, true);
+    window.addEventListener('keyup', onAltKey, true);
   }
 
   private resizeSingle(

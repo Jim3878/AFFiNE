@@ -37,5 +37,11 @@ export type ExtensionElementResizeMoveContext =
 
     lockRatio: boolean;
 
+    /**
+     * NineDay: scaling around the center (Alt held): the handle moves half as
+     * far as the size changes.
+     */
+    fromCenter: boolean;
+
     suggest: (distance: { scaleX: number; scaleY: number }) => void;
   };

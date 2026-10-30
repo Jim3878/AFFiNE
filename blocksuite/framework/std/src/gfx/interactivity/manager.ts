@@ -1013,6 +1013,7 @@ export class InteractivityManager extends GfxExtension {
         handlePos,
         currentHandlePos,
         lockRatio,
+        fromCenter,
       }) => {
         const suggested: {
           scaleX: number;
@@ -1034,6 +1035,7 @@ export class InteractivityManager extends GfxExtension {
             originalBound,
             currentHandlePos,
             lockRatio,
+            fromCenter,
             suggest,
           });
         });

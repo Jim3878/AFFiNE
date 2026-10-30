@@ -144,10 +144,12 @@ export class SnapExtension extends InteractivityExtension {
 
             const dx = switchDirection ? ny * rst.dy : nx * rst.dx;
             const dy = switchDirection ? nx * rst.dx : ny * rst.dy;
+            // NineDay: around the center the handle is half a size away.
+            const extent = context.fromCenter ? 0.5 : 1;
 
             context.suggest({
-              scaleX: scaleX + dx / originalBound.w,
-              scaleY: scaleY + dy / originalBound.h,
+              scaleX: scaleX + dx / (originalBound.w * extent),
+              scaleY: scaleY + dy / (originalBound.h * extent),
             });
           }
         },

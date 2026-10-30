@@ -104,12 +104,20 @@ export const EmbedLinkedDocInteraction =
       },
       handleResize: ({ model }) => ({
         onResizeMove: context => {
-          const { handle, newBound } = context;
+          const { handle, newBound, originalBound } = context;
           if (handle === 'left' || handle === 'right') {
             // Not narrower than the width of the card's style.
             const minWidth = linkedDocStyleWidth(model, newBound.h);
             if (newBound.w < minWidth) {
-              if (handle === 'left') newBound.x -= minWidth - newBound.w;
+              // Resizing around the center (Alt) keeps the center.
+              const centered =
+                Math.abs(
+                  newBound.x +
+                    newBound.w / 2 -
+                    (originalBound.x + originalBound.w / 2)
+                ) < 0.5;
+              if (centered) newBound.x -= (minWidth - newBound.w) / 2;
+              else if (handle === 'left') newBound.x -= minWidth - newBound.w;
               newBound.w = minWidth;
             }
           }
