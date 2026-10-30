@@ -342,6 +342,14 @@ export const styles = css`
       display: none !important;
     }
   }
+
+  /* NineDay: a title enlarged in the canvas toolbar stays on one line. */
+  .affine-embed-linked-doc-content-title-text.sized {
+    align-self: stretch;
+    min-width: 0;
+    white-space: nowrap;
+    word-break: normal;
+  }
 `;
 
 export const LinkedDocDeletedIcon = html`<svg

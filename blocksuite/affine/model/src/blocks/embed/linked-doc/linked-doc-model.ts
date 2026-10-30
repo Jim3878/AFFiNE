@@ -17,6 +17,11 @@ export type EmbedLinkedDocBlockProps = {
   style: (typeof EmbedLinkedDocStyles)[number];
   caption: string | null;
   footnoteIdentifier: string | null;
+  /**
+   * NineDay: font size (px) of the card title on the edgeless canvas; unset keeps
+   * the default title.
+   */
+  titleFontSize?: number;
 } & ReferenceInfo;
 
 export class EmbedLinkedDocModel extends defineEmbedModel<EmbedLinkedDocBlockProps>(

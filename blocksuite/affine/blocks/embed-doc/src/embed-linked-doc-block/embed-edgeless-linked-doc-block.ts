@@ -1,7 +1,4 @@
-import {
-  createEmbedEdgelessBlockInteraction,
-  toEdgelessEmbedBlock,
-} from '@blocksuite/affine-block-embed';
+import { toEdgelessEmbedBlock } from '@blocksuite/affine-block-embed';
 import {
   EdgelessCRUDIdentifier,
   reassociateConnectorsCommand,
@@ -17,14 +14,17 @@ import {
   isNewViewTrigger,
 } from '@blocksuite/affine-shared/utils';
 import { Bound } from '@blocksuite/global/gfx';
+import { GfxViewInteractionExtension } from '@blocksuite/std/gfx';
+import { query } from 'lit/decorators.js';
 
 import { EmbedLinkedDocBlockComponent } from './embed-linked-doc-block.js';
+import { linkedDocStyleWidth } from './title-size.js';
 
 export class EmbedEdgelessLinkedDocBlockComponent extends toEdgelessEmbedBlock(
   EmbedLinkedDocBlockComponent
 ) {
   override convertToEmbed = () => {
-    const { caption, xywh } = this.model.props;
+    const { caption, xywh, titleFontSize } = this.model.props;
     const { store, id } = this.model;
 
     const style = 'syncedDoc';
@@ -39,6 +39,8 @@ export class EmbedEdgelessLinkedDocBlockComponent extends toEdgelessEmbedBlock(
       {
         xywh: bound.serialize(),
         caption,
+        // NineDay: keep the title size when switching to the embed view.
+        titleFontSize,
         ...cloneReferenceInfoWithoutAliases(this.referenceInfo$.peek()),
       },
       surface
@@ -64,8 +66,55 @@ export class EmbedEdgelessLinkedDocBlockComponent extends toEdgelessEmbedBlock(
       this.open({ openMode: 'open-in-new-view', event: evt });
     }
   };
+
+  /** NineDay: how many px of the enlarged title do not fit in the card. */
+  get titleOverflow() {
+    const title = this.titleElement;
+    if (!title?.classList.contains('sized')) return 0;
+    return title.scrollWidth - title.clientWidth;
+  }
+
+  @query('.affine-embed-linked-doc-content-title-text')
+  accessor titleElement!: HTMLDivElement | null;
 }
 
-export const EmbedLinkedDocInteraction = createEmbedEdgelessBlockInteraction(
-  EmbedLinkedDocBlockSchema.model.flavour
-);
+export const EmbedLinkedDocInteraction =
+  GfxViewInteractionExtension<EmbedEdgelessLinkedDocBlockComponent>(
+    EmbedLinkedDocBlockSchema.model.flavour,
+    {
+      // NineDay: the side handles change only the width (corners keep the ratio),
+      // to narrow a card widened for its title.
+      resizeConstraint: {
+        lockRatio: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        allowedHandlers: [
+          'top-left',
+          'top-right',
+          'left',
+          'right',
+          'bottom-left',
+          'bottom-right',
+        ],
+      },
+      handleRotate() {
+        return {
+          beforeRotate(context) {
+            context.set({ rotatable: false });
+          },
+        };
+      },
+      handleResize: ({ model }) => ({
+        onResizeMove: context => {
+          const { handle, newBound } = context;
+          if (handle === 'left' || handle === 'right') {
+            // Not narrower than the width of the card's style.
+            const minWidth = linkedDocStyleWidth(model, newBound.h);
+            if (newBound.w < minWidth) {
+              if (handle === 'left') newBound.x -= minWidth - newBound.w;
+              newBound.w = minWidth;
+            }
+          }
+          context.default(context);
+        },
+      }),
+    }
+  );

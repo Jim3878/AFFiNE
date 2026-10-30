@@ -143,7 +143,7 @@ export class EmbedEdgelessSyncedDocBlockComponent extends toEdgelessEmbedBlock(
 
   override convertToCard = (aliasInfo?: AliasInfo) => {
     const { id, store, xywh } = this.model;
-    const { caption } = this.model.props;
+    const { caption, titleFontSize } = this.model.props;
 
     const style = 'vertical';
     const bound = Bound.deserialize(xywh);
@@ -158,6 +158,8 @@ export class EmbedEdgelessSyncedDocBlockComponent extends toEdgelessEmbedBlock(
         xywh: bound.serialize(),
         style,
         caption,
+        // NineDay: keep the title size when switching to the card view.
+        titleFontSize,
         ...this.referenceInfo,
         ...aliasInfo,
       },

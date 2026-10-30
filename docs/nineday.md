@@ -133,6 +133,13 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   folded height and the minimum resize height use `syncedDocHeaderHeight()` instead of the fixed
   48px, and changing the size of a folded block resizes it. Auto clears the prop by assigning it
   inside `store.transact` (`updateBlock` skips `undefined`).
+  `nineday.19`: the linked doc card (Card view) on the canvas has the same menu
+  (`embed-linked-doc-block/title-size.ts`, `configs/toolbar.ts`), stored as its own
+  `titleFontSize`. A set size keeps the title on one line with an ellipsis; picking it widens
+  the card by the part of the title that does not fit (measured after render). The card's side
+  handles now change only its width (corners keep the ratio), down to the width of its style at
+  the current scale, so a card widened too far can be narrowed again. Switching between Card
+  view and Embed view keeps the size.
 - **Clearing a whole column** (`nineday.16`, `table/pc/controller/hotkeys.ts`,
   `database/src/data-source.ts`, store `model/block/sync-controller.ts`): Delete on a selected
   column wrote the cells one by one, and every write made the store rebuild the block's `cells`

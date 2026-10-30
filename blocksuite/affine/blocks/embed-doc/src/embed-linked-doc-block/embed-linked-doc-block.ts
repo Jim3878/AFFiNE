@@ -50,6 +50,7 @@ import * as Y from 'yjs';
 import { renderLinkedDocInCard } from '../common/render-linked-doc';
 import { SyncedDocErrorIcon } from '../embed-synced-doc-block/styles.js';
 import { styles } from './styles.js';
+import { linkedDocTitleLineHeight } from './title-size.js';
 import { getEmbedLinkedDocIcons } from './utils.js';
 
 @Peekable({
@@ -385,6 +386,22 @@ export class EmbedLinkedDocBlockComponent extends EmbedBlockComponent<EmbedLinke
 
     const hasDescriptionAlias = Boolean(description.value);
 
+    // NineDay: title size picked in the canvas toolbar, on one line with an ellipsis.
+    const titleFontSize = inCanvas
+      ? this.model.props.titleFontSize$.value
+      : undefined;
+    const titleClassMap = classMap({
+      'affine-embed-linked-doc-content-title-text': true,
+      sized: !!titleFontSize,
+    });
+    const titleStyle = titleFontSize
+      ? styleMap({
+          fontSize: `${titleFontSize}px`,
+          lineHeight: `${linkedDocTitleLineHeight(titleFontSize)}px`,
+          height: `${linkedDocTitleLineHeight(titleFontSize)}px`,
+        })
+      : nothing;
+
     return this.renderEmbed(
       () => html`
         <div
@@ -398,9 +415,7 @@ export class EmbedLinkedDocBlockComponent extends EmbedBlockComponent<EmbedLinke
                 ${icon}
               </div>
 
-              <div class="affine-embed-linked-doc-content-title-text">
-                ${title}
-              </div>
+              <div class=${titleClassMap} style=${titleStyle}>${title}</div>
             </div>
 
             ${when(

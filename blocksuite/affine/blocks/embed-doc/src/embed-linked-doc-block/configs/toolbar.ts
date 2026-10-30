@@ -42,7 +42,15 @@ import { ifDefined } from 'lit/directives/if-defined.js';
 import { keyed } from 'lit/directives/keyed.js';
 import { repeat } from 'lit/directives/repeat.js';
 
+import {
+  SYNCED_DOC_DEFAULT_TITLE_SIZE,
+  SYNCED_DOC_TITLE_SIZE_MAX,
+  SYNCED_DOC_TITLE_SIZE_MIN,
+  SYNCED_DOC_TITLE_SIZES,
+} from '../../embed-synced-doc-block/title-size';
+import { EmbedEdgelessLinkedDocBlockComponent } from '../embed-edgeless-linked-doc-block';
 import { EmbedLinkedDocBlockComponent } from '../embed-linked-doc-block';
+import { widenLinkedDocCard } from '../title-size';
 
 const trackBaseProps = {
   category: 'linked doc',
@@ -480,6 +488,65 @@ const builtinSurfaceToolbarConfig = {
             @toggle=${onToggle}
             .format=${format}
             .sizeSignal=${scale$}
+          ></affine-size-dropdown-menu>`
+        )}`;
+      },
+    },
+    {
+      // NineDay: title size, like the synced doc's (see ../title-size.ts).
+      id: 'f.title-size',
+      content(ctx) {
+        const block = ctx.getCurrentBlockByType(
+          EmbedEdgelessLinkedDocBlockComponent
+        );
+        const model = block?.model;
+        if (!block || !model) return null;
+
+        const size$ = computed(
+          () =>
+            model.props.titleFontSize$.value ?? SYNCED_DOC_DEFAULT_TITLE_SIZE
+        );
+        const onSelect = (e: CustomEvent<number>) => {
+          e.stopPropagation();
+
+          const picked = e.detail;
+          const titleFontSize =
+            picked === SYNCED_DOC_DEFAULT_TITLE_SIZE
+              ? undefined
+              : Math.min(
+                  SYNCED_DOC_TITLE_SIZE_MAX,
+                  Math.max(SYNCED_DOC_TITLE_SIZE_MIN, picked)
+                );
+          if (titleFontSize === (model.props.titleFontSize ?? undefined))
+            return;
+
+          // Set the props directly: updateBlock skips undefined values, so it
+          // could not clear the size ("Auto").
+          ctx.store.captureSync();
+          ctx.store.transact(() => {
+            model.props.titleFontSize = titleFontSize;
+          });
+          if (!titleFontSize) return;
+
+          // Widen the card once the title is rendered at its new size; this
+          // lands in the same undo step.
+          block.updateComplete
+            .then(() => widenLinkedDocCard(model, block.titleOverflow))
+            .catch(console.error);
+        };
+        const format = (value: number) =>
+          value === SYNCED_DOC_DEFAULT_TITLE_SIZE ? 'Auto' : `${value}`;
+
+        return html`${keyed(
+          model,
+          html`<affine-size-dropdown-menu
+            @select=${onSelect}
+            .label=${'Title size'}
+            .sizes=${SYNCED_DOC_TITLE_SIZES}
+            .format=${format}
+            .minSize=${SYNCED_DOC_DEFAULT_TITLE_SIZE}
+            .maxSize=${SYNCED_DOC_TITLE_SIZE_MAX}
+            .sizeSignal=${size$}
           ></affine-size-dropdown-menu>`
         )}`;
       },
