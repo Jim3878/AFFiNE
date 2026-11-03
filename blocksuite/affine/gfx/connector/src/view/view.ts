@@ -5,6 +5,7 @@ import {
 import { Bound, serializeXYWH, Vec } from '@blocksuite/global/gfx';
 import type { PointerEventState } from '@blocksuite/std';
 import {
+  type BoxSelectionContext,
   type DragEndContext,
   type DragMoveContext,
   type DragStartContext,
@@ -14,6 +15,7 @@ import {
 } from '@blocksuite/std/gfx';
 
 import { mountConnectorLabelEditor } from '../text/edgeless-connector-label-editor';
+import { connectorIntersectsBox } from './box-selection';
 
 export class ConnectorElementView extends GfxElementModelView<ConnectorElementModel> {
   static override type = 'connector';
@@ -33,6 +35,12 @@ export class ConnectorElementView extends GfxElementModelView<ConnectorElementMo
 
     this.model.moveTo(currentBound.moveDelta(dx, dy));
   };
+
+  // NineDay: the bounding box of a connector can cover lines it never touches,
+  // so box selection tests the drawn path (and its label) instead.
+  override onBoxSelected({ box }: BoxSelectionContext) {
+    return connectorIntersectsBox(this.model, box);
+  }
 
   override onCreated(): void {
     super.onCreated();
