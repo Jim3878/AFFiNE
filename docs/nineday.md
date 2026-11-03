@@ -171,6 +171,10 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   box when any point along it is, not only one of its ends.
   `nineday.25`: anchors, handles and "+" points are 24 px transparent hit areas around a 12 px
   dot (`::after`); the dot of an anchor or handle grows on hover, and a hovered handle fills in.
+  `nineday.26`: the element toolbar (`widgets/toolbar/src/toolbar.ts`,
+  `setReferenceElementWithElements`) places itself around the selection plus the anchors and
+  handles of selected curve connectors, 12 px out (`curveControlBound`), so it no longer covers a
+  handle outside or near the edge of the connector's bound.
 - **Box-selecting connectors** (`nineday.22`, `gfx/connector/src/view/box-selection.ts`): box
   selection (std `InteractivityManager.handleBoxSelection`) only compares bounding boxes, so a
   box near an elbow, diagonal or curved connector picked it up although the line was far away.

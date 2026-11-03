@@ -9,6 +9,8 @@ import {
 } from '@blocksuite/affine-components/toolbar';
 import {
   CodeBlockModel,
+  ConnectorElementModel,
+  ConnectorMode,
   ImageBlockModel,
   ListBlockModel,
   ParagraphBlockModel,
@@ -50,6 +52,23 @@ import toPairs from 'lodash-es/toPairs';
 import { autoUpdatePosition, renderToolbar, sideMap } from './utils';
 
 export const AFFINE_TOOLBAR_WIDGET = 'affine-toolbar-widget';
+
+/**
+ * NineDay: room in px around the anchors and Bezier handles of a selected curve
+ * connector (half their hit area), so the toolbar does not cover them.
+ */
+const CURVE_CONTROL_CLEARANCE = 12;
+
+/** NineDay: the bound of the anchors and handles of curve connectors. */
+function curveControlBound(elements: GfxModel[]) {
+  const points = elements.flatMap(element =>
+    element instanceof ConnectorElementModel &&
+    element.mode === ConnectorMode.Curve
+      ? element.absolutePath.flatMap(p => [p, p.absIn, p.absOut])
+      : []
+  );
+  return points.length ? Bound.fromPoints(points) : null;
+}
 
 export class AffineToolbarWidget extends WidgetComponent {
   static override styles = css`
@@ -172,10 +191,19 @@ export class AffineToolbarWidget extends WidgetComponent {
 
   setReferenceElementWithElements(gfx: GfxController, elements: GfxModel[]) {
     const surfaceBounds = getCommonBoundWithRotation(elements);
+    const curveControls = curveControlBound(elements);
 
     const getBoundingClientRect = () => {
       const { x: offsetX, y: offsetY } = this.getBoundingClientRect();
-      const [x, y, w, h] = gfx.viewport.toViewBound(surfaceBounds).toXYWH();
+      let viewBound = gfx.viewport.toViewBound(surfaceBounds);
+      if (curveControls) {
+        viewBound = viewBound.unite(
+          gfx.viewport
+            .toViewBound(curveControls)
+            .expand(CURVE_CONTROL_CLEARANCE)
+        );
+      }
+      const [x, y, w, h] = viewBound.toXYWH();
       const rect = new DOMRect(x + offsetX, y + offsetY, w, h);
       return rect;
     };
