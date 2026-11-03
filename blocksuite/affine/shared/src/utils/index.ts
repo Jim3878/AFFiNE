@@ -13,6 +13,7 @@ export * from './fractional-indexing';
 export * from './image';
 export * from './insert';
 export * from './is-abort-error';
+export * from './markdown-table';
 export * from './math';
 export * from './model';
 export * from './number-prefix';

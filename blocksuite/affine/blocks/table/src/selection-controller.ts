@@ -2,6 +2,7 @@ import {
   domToOffsets,
   getAreaByOffsets,
   getTargetIndexByDraggingOffset,
+  toMarkdownTable,
 } from '@blocksuite/affine-shared/utils';
 import { IS_MOBILE } from '@blocksuite/global/env';
 import type { UIEventStateContext } from '@blocksuite/std';
@@ -340,7 +341,9 @@ export class SelectionController implements ReactiveController {
     if (isCut) {
       this.dataManager.clearCells(deleteCells);
     }
-    const text = cells.map(row => row.join('\t')).join('\n');
+    // NineDay: plain-text targets get a Markdown table; spreadsheets and
+    // AFFiNE read the HTML table below.
+    const text = toMarkdownTable(cells);
 
     const htmlTable = `<table style="border-collapse: collapse;">
       <tbody>

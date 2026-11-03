@@ -183,6 +183,19 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   embed references the new doc, so the sidebar lists it under the canvas doc. Undo removes the
   card; the doc stays in All docs. BlockSuite has no translations, so the label follows
   `<html lang>` (`新增頁面` for zh-Hant).
+- **Markdown tables on the clipboard** (`nineday.24`): pasting Markdown copied from an editor or a
+  web page (text/plain plus HTML that only styles the lines) pasted the HTML, so a table became
+  lines of `|`. std `Clipboard._getDataByType` now drops the HTML when the plain text holds a GFM
+  table (`containsMarkdownTable` in `clipboard/utils.ts`: a header row followed by a delimiter row
+  with as many cells) and the HTML has no `<table>`; the plain text then goes through the Markdown
+  adapter. Copying a table block now also writes text/plain (`MixTextAdapter` had no case for
+  `affine:table`, so only HTML was written), and copying selected cells
+  (`table/src/selection-controller.ts`) writes a Markdown table instead of tab-separated text.
+  Both use `toMarkdownTable` (shared `utils/markdown-table.ts`: first row is the header, `|`
+  escaped, line breaks become spaces). The HTML table is unchanged, so spreadsheets and AFFiNE
+  still paste cells. Unit tests: std `markdown-table-paste.unit.spec.ts` (runs with
+  `--browser.enabled=false`), shared `utils/markdown-table.unit.spec.ts`, all
+  `adapters/mix-text-table.unit.spec.ts`.
 - **Clearing a whole column** (`nineday.16`, `table/pc/controller/hotkeys.ts`,
   `database/src/data-source.ts`, store `model/block/sync-controller.ts`): Delete on a selected
   column wrote the cells one by one, and every write made the store rebuild the block's `cells`

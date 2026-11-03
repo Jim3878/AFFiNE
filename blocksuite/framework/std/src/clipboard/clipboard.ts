@@ -12,7 +12,7 @@ import { unified } from 'unified';
 
 import { LifeCycleWatcher } from '../extension/index.js';
 import { ClipboardAdapterConfigIdentifier } from './clipboard-adapter.js';
-import { onlyContainImgElement } from './utils.js';
+import { containsMarkdownTable, onlyContainImgElement } from './utils.js';
 
 export class Clipboard extends LifeCycleWatcher {
   static override key = 'clipboard';
@@ -53,6 +53,19 @@ export class Clipboard extends LifeCycleWatcher {
       if (isImgOnly) {
         data.delete('text/html');
       }
+    }
+    // NineDay: Markdown copied from an editor or a web page usually comes with
+    // HTML that only styles the lines, which would paste as plain paragraphs.
+    // Let the plain text (parsed as Markdown) win unless the HTML has a table.
+    const plainText = data.get('text/plain');
+    const html = data.get('text/html');
+    if (
+      typeof plainText === 'string' &&
+      typeof html === 'string' &&
+      containsMarkdownTable(plainText) &&
+      !/<table[\s>]/i.test(html)
+    ) {
+      data.delete('text/html');
     }
     return (type: string) => {
       const item = data.get(type);

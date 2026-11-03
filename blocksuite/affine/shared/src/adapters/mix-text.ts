@@ -22,6 +22,7 @@ import {
   type Transformer,
 } from '@blocksuite/store';
 
+import { toMarkdownTable } from '../utils/markdown-table';
 import { MarkdownAdapter } from './markdown/markdown';
 import { AdapterFactoryIdentifier } from './types/adapter';
 
@@ -33,6 +34,33 @@ type MixTextToSliceSnapshotPayload = {
   workspaceId: string;
   pageId: string;
 };
+
+type OrderedTableItem = { order: string };
+
+// NineDay: the cell text of a table block snapshot, as a Markdown table.
+function tableSnapshotToMarkdown(props: Record<string, unknown>) {
+  const byOrder = <T extends OrderedTableItem>(items: unknown) =>
+    Object.values((items ?? {}) as Record<string, T>).sort((a, b) =>
+      a.order === b.order ? 0 : a.order > b.order ? 1 : -1
+    );
+  const rows = byOrder<OrderedTableItem & { rowId: string }>(props.rows);
+  const columns = byOrder<OrderedTableItem & { columnId: string }>(
+    props.columns
+  );
+  const cells = (props.cells ?? {}) as Record<
+    string,
+    { text?: { delta?: DeltaInsert[] } }
+  >;
+  return toMarkdownTable(
+    rows.map(row =>
+      columns.map(column =>
+        (cells[`${row.rowId}:${column.columnId}`]?.text?.delta ?? [])
+          .map(delta => delta.insert)
+          .join('')
+      )
+    )
+  );
+}
 
 export class MixTextAdapter extends BaseAdapter<MixText> {
   private readonly _markdownAdapter: MarkdownAdapter;
@@ -97,6 +125,11 @@ export class MixTextAdapter extends BaseAdapter<MixText> {
         }
         case 'affine:divider': {
           buffer += '---';
+          break;
+        }
+        // NineDay: a copied table reaches plain-text targets as Markdown.
+        case 'affine:table': {
+          buffer += tableSnapshotToMarkdown(o.node.props);
           break;
         }
       }
