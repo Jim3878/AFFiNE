@@ -169,6 +169,20 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   for hit tests, label position (time spread evenly over the segments), bounds, line
   intersections, rough rendering and end arrow tangents. A curve is now inside a selection
   box when any point along it is, not only one of its ends.
+- **Box-selecting connectors** (`nineday.22`, `gfx/connector/src/view/box-selection.ts`): box
+  selection (std `InteractivityManager.handleBoxSelection`) only compares bounding boxes, so a
+  box near an elbow, diagonal or curved connector picked it up although the line was far away.
+  `ConnectorElementView.onBoxSelected` now keeps a connector only when the box, widened by half
+  the stroke, meets its drawn path or label (`intersectsBound`). Unit tests in
+  `gfx/connector/src/__tests__/box-selection.unit.spec.ts`.
+- **New doc on the canvas** (`nineday.23`, `gfx/link/src/new-doc/`): a "New doc" quick tool after
+  the link tool, and a "New doc" context menu when right-clicking an empty spot of the canvas
+  (nothing under `getElementByPoint`, not while editing, not on a widget; other right-clicks keep
+  the default behavior). Both create an empty doc (`createDefaultDoc`) and add it as an embedded
+  doc (`affine:embed-synced-doc`) centered on the screen or on the click, then select it. The
+  embed references the new doc, so the sidebar lists it under the canvas doc. Undo removes the
+  card; the doc stays in All docs. BlockSuite has no translations, so the label follows
+  `<html lang>` (`新增頁面` for zh-Hant).
 - **Clearing a whole column** (`nineday.16`, `table/pc/controller/hotkeys.ts`,
   `database/src/data-source.ts`, store `model/block/sync-controller.ts`): Delete on a selected
   column wrote the cells one by one, and every write made the store rebuild the block's `cells`

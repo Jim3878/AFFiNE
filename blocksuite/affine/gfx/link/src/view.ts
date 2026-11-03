@@ -5,6 +5,7 @@ import {
 
 import { effects } from './effects';
 import { linkQuickTool } from './link-tool';
+import { NewDocContextMenu, newDocQuickTool } from './new-doc';
 
 export class LinkViewExtension extends ViewExtensionProvider {
   override name = 'affine-link-gfx';
@@ -18,6 +19,7 @@ export class LinkViewExtension extends ViewExtensionProvider {
     super.setup(context);
     if (this.isEdgeless(context.scope)) {
       context.register(linkQuickTool);
+      context.register([newDocQuickTool, NewDocContextMenu]);
     }
   }
 }
