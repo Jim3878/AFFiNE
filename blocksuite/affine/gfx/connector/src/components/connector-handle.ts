@@ -36,10 +36,11 @@ import type { ConnectionOverlay } from '../connector-manager';
 
 const SIZE = 12;
 const HALF_SIZE = SIZE / 2;
-// NineDay: anchors, Bezier handles and "+" points of a curve.
-const ANCHOR_SIZE = 10;
-const HANDLE_SIZE = 8;
-const GHOST_SIZE = 10;
+// NineDay: anchors, Bezier handles and "+" points of a curve. Each is a
+// transparent hit area of HIT_SIZE with a visible dot of DOT_SIZE inside.
+const HIT_SIZE = 24;
+const DOT_SIZE = 12;
+const DOT_HOVER_SIZE = 14;
 
 /**
  * NineDay: what a drag on the curve edits: an anchor (by its index in
@@ -94,35 +95,57 @@ export class EdgelessConnectorHandle extends WithDisposable(LitElement) {
       position: absolute;
       left: 0;
       top: 0;
-      box-sizing: border-box;
+      width: ${HIT_SIZE}px;
+      height: ${HIT_SIZE}px;
       pointer-events: all;
       touch-action: none;
       z-index: 10;
     }
-    .curve-anchor {
-      width: ${ANCHOR_SIZE}px;
-      height: ${ANCHOR_SIZE}px;
+    .curve-anchor::after,
+    .curve-handle::after,
+    .curve-ghost::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: ${DOT_SIZE}px;
+      height: ${DOT_SIZE}px;
+      transform: translate(-50%, -50%);
+      box-sizing: border-box;
       border: 2px solid var(--affine-text-emphasis-color);
-      background-color: var(--affine-text-emphasis-color);
-      border-radius: 2px;
+      background-color: var(--affine-background-primary-color);
+      transition:
+        width 0.1s,
+        height 0.1s;
+    }
+    .curve-anchor {
       cursor: move;
     }
+    .curve-anchor::after {
+      background-color: var(--affine-text-emphasis-color);
+      border-radius: 2px;
+    }
     .curve-handle {
-      width: ${HANDLE_SIZE}px;
-      height: ${HANDLE_SIZE}px;
-      border: 1.5px solid var(--affine-text-emphasis-color);
-      background-color: var(--affine-background-primary-color);
-      border-radius: 50%;
       cursor: pointer;
     }
-    .curve-ghost {
-      width: ${GHOST_SIZE}px;
-      height: ${GHOST_SIZE}px;
-      border: 1.5px solid var(--affine-text-emphasis-color);
-      background-color: var(--affine-background-primary-color);
+    .curve-handle::after {
       border-radius: 50%;
+    }
+    .curve-anchor:hover::after,
+    .curve-handle:hover::after {
+      width: ${DOT_HOVER_SIZE}px;
+      height: ${DOT_HOVER_SIZE}px;
+    }
+    .curve-handle:hover::after {
+      background-color: var(--affine-text-emphasis-color);
+    }
+    .curve-ghost {
       opacity: 0.5;
       cursor: copy;
+    }
+    .curve-ghost::after {
+      border-width: 1.5px;
+      border-radius: 50%;
     }
     .curve-ghost:hover {
       opacity: 1;
@@ -414,7 +437,7 @@ export class EdgelessConnectorHandle extends WithDisposable(LitElement) {
         (p, i) =>
           html`<div
             class="curve-ghost"
-            style=${place(p, GHOST_SIZE)}
+            style=${place(p, HIT_SIZE)}
             @pointerdown=${(e: PointerEvent) => this._addAnchor(e, i)}
           ></div>`
       )}
@@ -424,7 +447,7 @@ export class EdgelessConnectorHandle extends WithDisposable(LitElement) {
         (p, i) =>
           html`<div
             class="curve-anchor"
-            style=${place(p, ANCHOR_SIZE)}
+            style=${place(p, HIT_SIZE)}
             @pointerdown=${(e: PointerEvent) =>
               this._startCurveDrag(e, { type: 'anchor', index: i })}
             @dblclick=${(e: MouseEvent) => this._removeAnchor(e, i)}
@@ -434,7 +457,7 @@ export class EdgelessConnectorHandle extends WithDisposable(LitElement) {
         ({ at, drag }) =>
           html`<div
             class="curve-handle"
-            style=${place(at, HANDLE_SIZE)}
+            style=${place(at, HIT_SIZE)}
             @pointerdown=${(e: PointerEvent) => this._startCurveDrag(e, drag)}
           ></div>`
       )}

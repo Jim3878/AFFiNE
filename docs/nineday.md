@@ -169,6 +169,8 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   for hit tests, label position (time spread evenly over the segments), bounds, line
   intersections, rough rendering and end arrow tangents. A curve is now inside a selection
   box when any point along it is, not only one of its ends.
+  `nineday.25`: anchors, handles and "+" points are 24 px transparent hit areas around a 12 px
+  dot (`::after`); the dot of an anchor or handle grows on hover, and a hovered handle fills in.
 - **Box-selecting connectors** (`nineday.22`, `gfx/connector/src/view/box-selection.ts`): box
   selection (std `InteractivityManager.handleBoxSelection`) only compares bounding boxes, so a
   box near an elbow, diagonal or curved connector picked it up although the line was far away.
