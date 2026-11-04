@@ -47,13 +47,18 @@ const RichTextInput = ({
   const std = useBlockStdScope(dataSource.doc);
   const text = useLiveData(cell.value$ as LiveData<Y.Text>);
   const ref = useRef<HTMLDivElement>(null);
+  // nineday: the parent passes a new `onChange` on every render (and re-renders whenever the
+  // database changes anywhere), so depending on it rebuilt the editor mid-typing and dropped
+  // IME composition. Keep the latest callback in a ref; rebuild only when the Y.Text changes.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   // todo(@pengx17): following is a workaround to y.Text that it is got renewed when the cell is updated externally. however it breaks the cursor position.
   useEffect(() => {
     if (ref.current) {
       ref.current.innerHTML = '';
       const richText = renderRichText({ doc: dataSource.doc, std, text });
       const listener = () => {
-        onChange(text);
+        onChangeRef.current(text);
       };
       if (richText) {
         richText.addEventListener('change', listener);
@@ -65,7 +70,7 @@ const RichTextInput = ({
       }
     }
     return () => {};
-  }, [dataSource.doc, onChange, std, text]);
+  }, [dataSource.doc, std, text]);
   return <div className={styles.richTextInput} ref={ref} style={style} />;
 };
 

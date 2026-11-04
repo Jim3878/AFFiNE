@@ -202,6 +202,13 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   still paste cells. Unit tests: std `markdown-table-paste.unit.spec.ts` (runs with
   `--browser.enabled=false`), shared `utils/markdown-table.unit.spec.ts`, all
   `adapters/mix-text-table.unit.spec.ts`.
+- **IME in a doc's database properties** (`nineday.27`,
+  `core/src/modules/doc-info/views/database-properties/cells/rich-text.tsx`): a doc linked from a
+  database row shows that row's cells under Info. The text cell built its `RichText` in an effect
+  that depended on `onChange`, which the parent recreates on every render, and the row re-renders
+  whenever its database changes (a row added, any cell edited, synced edits). So the editor was
+  removed and rebuilt mid-typing, dropping uncommitted IME text. `onChange` is now read from a ref;
+  the editor is rebuilt only when the cell's `Y.Text` changes.
 - **Clearing a whole column** (`nineday.16`, `table/pc/controller/hotkeys.ts`,
   `database/src/data-source.ts`, store `model/block/sync-controller.ts`): Delete on a selected
   column wrote the cells one by one, and every write made the store rebuild the block's `cells`
