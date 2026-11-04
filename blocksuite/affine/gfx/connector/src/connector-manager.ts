@@ -172,6 +172,15 @@ function getConnectableRelativePosition(connectable: GfxModel, position: IVec) {
   return location;
 }
 
+/**
+ * NineDay: length of the automatic Bezier handle at an end of a curve
+ * connector that is attached to an element: half the distance to the
+ * neighbouring point (the first/last anchor or the other end), at least 100.
+ */
+export function curveEndHandleLength(end: IVec, neighbour: IVec) {
+  return Math.max(100, Vec.dist(end, neighbour) / 2);
+}
+
 export function getNearestConnectableAnchor(ele: Connectable, point: IVec) {
   const anchors = getAnchors(ele);
   return closestPoint(
@@ -1326,18 +1335,17 @@ export class ConnectorPathGenerator extends PathGenerator {
       const next = anchors[0] ?? endPoint;
       const prev = anchors[anchors.length - 1] ?? startPoint;
 
+      // NineDay: an attached end's handle is half the distance to its neighbour
+      // (at least 100). Upstream used a third of that distance along the
+      // normal, which is about 0 when the other end is off to the side, so
+      // most handles were 100 long and the curve barely bent.
       if (source.id) {
         const startTangentVertical = Vec.rot(startPoint.tangent, -Math.PI / 2);
         startPoint.out = isVecZero(startTangentVertical)
           ? Vec.mul(Vec.per(Vec.normalize(Vec.sub(startPoint, next))), 20)
           : Vec.mul(
-              startTangentVertical,
-              Math.max(
-                100,
-                Math.abs(
-                  Vec.pry(Vec.sub(next, startPoint), startTangentVertical)
-                ) / 3
-              )
+              Vec.normalize(startTangentVertical),
+              curveEndHandleLength(startPoint, next)
             );
       }
       if (target.id) {
@@ -1345,12 +1353,8 @@ export class ConnectorPathGenerator extends PathGenerator {
         endPoint.in = isVecZero(endTangentVertical)
           ? Vec.mul(Vec.per(Vec.normalize(Vec.sub(endPoint, prev))), 20)
           : Vec.mul(
-              endTangentVertical,
-              Math.max(
-                100,
-                Math.abs(Vec.pry(Vec.sub(prev, endPoint), endTangentVertical)) /
-                  3
-              )
+              Vec.normalize(endTangentVertical),
+              curveEndHandleLength(endPoint, prev)
             );
       }
       return this._applyCurveHandles(connector, startPoint, endPoint, anchors);

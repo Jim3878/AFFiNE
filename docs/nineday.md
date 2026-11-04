@@ -175,6 +175,13 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   `setReferenceElementWithElements`) places itself around the selection plus the anchors and
   handles of selected curve connectors, 12 px out (`curveControlBound`), so it no longer covers a
   handle outside or near the edge of the connector's bound.
+  `nineday.28`: an ellipse's tangent at an attach point (`model/.../shape/api/ellipse.ts`,
+  `ellipseTangentAt`) is the real one; upstream used the edge of the bound's octagon, so on a
+  circle the automatic end handle (the tangent turned −90°) only pointed away from the center at
+  the four edge midpoints and curves came in at a slant. The automatic handle of an attached end
+  is half the distance to its neighbouring point, at least 100 (`curveEndHandleLength`; upstream
+  a third of that distance along the normal, mostly 100). Unit tests:
+  `gfx/connector/src/__tests__/curve-end-handle.unit.spec.ts`.
 - **Box-selecting connectors** (`nineday.22`, `gfx/connector/src/view/box-selection.ts`): box
   selection (std `InteractivityManager.handleBoxSelection`) only compares bounding boxes, so a
   box near an elbow, diagonal or curved connector picked it up although the line was far away.

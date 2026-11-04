@@ -166,37 +166,39 @@ export const ellipse = {
   ) {
     const bounds = Bound.deserialize(xywh);
     const point = bounds.getRelativePoint(relativePoint);
-    const { x, y, w, h, center } = bounds;
-    const points = rotatePoints(
-      [
-        [x, y],
-        [x + w / 2, y],
-        [x + w, y],
-        [x + w, y + h / 2],
-        [x + w, y + h],
-        [x + w / 2, y + h],
-        [x, y + h],
-        [x, y + h / 2],
-        point,
-      ],
-      center,
-      rotate
-    );
-    const rotatedPoint = points.pop() as IVec;
-    const len = points.length;
-    let tangent: IVec = [0, 0.5];
-    let i = 0;
-
-    for (; i < len; i++) {
-      const p0 = points[i];
-      const p1 = points[(i + 1) % len];
-      const bounds = Bound.fromPoints([p0, p1, center]);
-      if (bounds.containsPoint(rotatedPoint)) {
-        tangent = Vec.normalize(Vec.sub(p1, p0));
-        break;
-      }
-    }
-
+    const [rotatedPoint] = rotatePoints([point], bounds.center, rotate);
+    const tangent = ellipseTangentAt(relativePoint, bounds.w, bounds.h, rotate);
     return new PointLocation(rotatedPoint, tangent);
   },
 };
+
+/**
+ * NineDay: the tangent of an ellipse at a point given relative to its bound
+ * ([0, 0] top left, [1, 1] bottom right), clockwise on screen like the other
+ * shapes, so `Vec.rot(tangent, -Math.PI / 2)` is the outward normal.
+ *
+ * Upstream took the edge of the bound's octagon (corners and edge midpoints)
+ * that the point fell in, so on a circle the normal only pointed at the
+ * center at the top, right, bottom and left; curve connectors attached
+ * anywhere else came in at a slant.
+ */
+export function ellipseTangentAt(
+  relativePoint: IVec,
+  w: number,
+  h: number,
+  rotate = 0
+): IVec {
+  const a = w / 2;
+  const b = h / 2;
+  const dx = (relativePoint[0] - 0.5) * w;
+  const dy = (relativePoint[1] - 0.5) * h;
+  // Outward normal of x²/a² + y²/b² = 1 is (x/a², y/b²); scaled by a²b².
+  const normal: IVec = [dx * b * b, dy * a * a];
+  if (isZeroVec(normal)) return Vec.rot([0, 0.5], toRadian(rotate));
+  const tangent = Vec.normalize([-normal[1], normal[0]]);
+  return Vec.rot(tangent, toRadian(rotate));
+}
+
+function isZeroVec(v: IVec) {
+  return Math.abs(v[0]) < 1e-12 && Math.abs(v[1]) < 1e-12;
+}
