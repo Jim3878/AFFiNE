@@ -182,6 +182,10 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   is half the distance to its neighbouring point, at least 100 (`curveEndHandleLength`; upstream
   a third of that distance along the normal, mostly 100). Unit tests:
   `gfx/connector/src/__tests__/curve-end-handle.unit.spec.ts`.
+- **Connector line style button** (`nineday.29`, `gfx/connector/src/toolbar/config.ts`): the line
+  width slider and solid/dash/none were inside the stroke color panel; they are now their own
+  toolbar button (`a.stroke-line`, `LineStyleIcon` + chevron, like the note's "Border style"),
+  right after the color button, whose panel only has colors. Shapes are unchanged.
 - **Box-selecting connectors** (`nineday.22`, `gfx/connector/src/view/box-selection.ts`): box
   selection (std `InteractivityManager.handleBoxSelection`) only compares bounding boxes, so a
   box near an elbow, diagonal or curved connector picked it up although the line was far away.

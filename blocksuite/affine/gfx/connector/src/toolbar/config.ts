@@ -4,6 +4,7 @@ import {
   type PickColorEvent,
 } from '@blocksuite/affine-components/color-picker';
 import type { LineDetailType } from '@blocksuite/affine-components/edgeless-line-styles-panel';
+import { EditorChevronDown } from '@blocksuite/affine-components/toolbar';
 import {
   createTextActions,
   normalizeTextBound,
@@ -48,6 +49,7 @@ import {
   EndPointDiamondIcon,
   EndPointTriangleIcon,
   FlipDirectionIcon,
+  LineStyleIcon,
   ResetIcon,
   StartPointArrowIcon,
   StartPointCircleIcon,
@@ -139,10 +141,6 @@ export const connectorToolbarConfig = {
 
         const field = 'stroke';
         const firstModel = models[0];
-        const strokeWidth =
-          getMostCommonValue(models, 'strokeWidth') ?? LineWidth.Four;
-        const strokeStyle =
-          getMostCommonValue(models, 'strokeStyle') ?? StrokeStyle.Solid;
         const stroke =
           getMostCommonResolvedValue(models, field, stroke =>
             resolveColor(stroke, theme)
@@ -176,6 +174,37 @@ export const connectorToolbarConfig = {
           }
         };
 
+        // NineDay: line width and style moved to their own button
+        // ('a.stroke-line'); this one only picks the color.
+        return html`
+          <edgeless-color-picker-button
+            class="stroke-color"
+            .label="${'Stroke color'}"
+            .pick=${onPickColor}
+            .color=${stroke}
+            .theme=${theme}
+            .hollowCircle=${true}
+            .originalColor=${firstModel.stroke}
+            .enableCustomColor=${enableCustomColor}
+          >
+          </edgeless-color-picker-button>
+        `;
+      },
+    },
+    {
+      // NineDay: line width and solid/dash/none, next to the color button
+      // (they used to be inside its panel). Same look as the note's
+      // "Border style" button.
+      id: 'a.stroke-line',
+      content(ctx) {
+        const models = ctx.getSurfaceModelsByType(ConnectorElementModel);
+        if (!models.length) return null;
+
+        const strokeWidth =
+          getMostCommonValue(models, 'strokeWidth') ?? LineWidth.Four;
+        const strokeStyle =
+          getMostCommonValue(models, 'strokeStyle') ?? StrokeStyle.Solid;
+
         const onPickStrokeStyle = (e: CustomEvent<LineDetailType>) => {
           e.stopPropagation();
 
@@ -190,18 +219,18 @@ export const connectorToolbarConfig = {
         };
 
         return html`
-          <edgeless-color-picker-button
-            class="stroke-color"
-            .label="${'Stroke style'}"
-            .pick=${onPickColor}
-            .color=${stroke}
-            .theme=${theme}
-            .hollowCircle=${true}
-            .originalColor=${firstModel.stroke}
-            .enableCustomColor=${enableCustomColor}
+          <editor-menu-button
+            class="stroke-line"
+            .button=${html`
+              <editor-icon-button
+                aria-label="Line style"
+                .tooltip="${'Line style'}"
+              >
+                ${LineStyleIcon()} ${EditorChevronDown}
+              </editor-icon-button>
+            `}
           >
             <edgeless-line-styles-panel
-              slot="other"
               style=${styleMap({
                 display: 'flex',
                 alignSelf: 'stretch',
@@ -211,11 +240,7 @@ export const connectorToolbarConfig = {
               .lineSize=${strokeWidth}
               .lineStyle=${strokeStyle}
             ></edgeless-line-styles-panel>
-            <editor-toolbar-separator
-              slot="separator"
-              data-orientation="horizontal"
-            ></editor-toolbar-separator>
-          </edgeless-color-picker-button>
+          </editor-menu-button>
         `;
       },
     },
