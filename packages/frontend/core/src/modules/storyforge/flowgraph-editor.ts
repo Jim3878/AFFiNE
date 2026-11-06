@@ -52,6 +52,7 @@ type LiteNode = {
   pos: [number, number];
   size: [number, number];
   _displayTitle?: string;
+  flags: { pinned?: boolean };
 };
 type LiteCanvas = {
   ds: { scale: number; offset: [number, number] };
@@ -59,6 +60,8 @@ type LiteCanvas = {
   canvas: HTMLCanvasElement;
   onDrawOverlay?: (ctx: CanvasRenderingContext2D) => void;
   setDirty(fg: boolean, bg?: boolean): void;
+  selected_nodes?: Record<string, LiteNode>;
+  deselectNode?(node: LiteNode): void;
   node_dragged?: unknown;
   connecting_node?: unknown;
   dragging_canvas?: boolean;
@@ -259,6 +262,7 @@ export class FlowGraphEditor {
       this.dotnetShim()
     );
     this.hookOverlay();
+    this.applyLocks();
     this.onSelectNode(null);
     this.onSelectGroup(null);
   }
@@ -343,11 +347,61 @@ export class FlowGraphEditor {
     color: string;
     cursor?: { x: number; y: number } | null;
     selected?: string | null;
+    locked?: string[];
   }[] = [];
+  /** Nodes someone else is dragging or editing right now -> who. */
+  private lockedBy = new Map<string, { name: string; color: string }>();
+  /** The node whose fields I am editing in the side panel (part of my locks). */
+  editingGuid: string | null = null;
 
   setPeers(peers: typeof this.peers) {
     this.peers = peers;
+    this.lockedBy = new Map();
+    for (const p of peers)
+      for (const g of p.locked ?? [])
+        if (!this.lockedBy.has(g))
+          this.lockedBy.set(g, { name: p.name, color: p.color });
+    this.applyLocks();
     this.canvas?._debug.getCanvas().setDirty(true, false);
+  }
+
+  lockedByName(guid: string) {
+    return this.lockedBy.get(guid)?.name ?? null;
+  }
+
+  /** Nodes I am controlling now (dragging, or editing in the side panel): broadcast so others can't touch them. */
+  myLocks(): string[] {
+    const out = new Set<string>();
+    const c = this.canvas?._debug.getCanvas();
+    if (c?.node_dragged && this.canvas) {
+      const guids = this.canvas._debug.guidByNode();
+      const moving = Object.values(c.selected_nodes ?? {});
+      for (const n of moving.length ? moving : [c.node_dragged as LiteNode]) {
+        const g = guids.get(n);
+        if (g) out.add(g);
+      }
+    }
+    if (this.editingGuid) out.add(this.editingGuid);
+    return [...out].sort();
+  }
+
+  // A node someone else controls is pinned (LiteGraph won't start dragging it) and taken out of my
+  // selection (so a multi-node drag can't carry it along).
+  private applyLocks() {
+    if (!this.canvas) return;
+    const lite = this.canvas._debug;
+    const c = lite.getCanvas();
+    for (const [node, guid] of lite.guidByNode()) {
+      const locked = this.lockedBy.has(guid);
+      node.flags ??= {};
+      if (!!node.flags.pinned !== locked) node.flags.pinned = locked;
+      if (
+        locked &&
+        c.selected_nodes &&
+        Object.values(c.selected_nodes).includes(node)
+      )
+        c.deselectNode?.(node);
+    }
   }
 
   /** Canvas-space (graph) position of a mouse event, for sharing the cursor. */
@@ -375,6 +429,19 @@ export class FlowGraphEditor {
       if (lite)
         for (const [node, guid] of lite.guidByNode()) byGuid.set(guid, node);
       ctx.save();
+      for (const [guid, who] of this.lockedBy) {
+        const n = byGuid.get(guid);
+        if (!n) continue;
+        const label = `🔒 ${who.name}`;
+        ctx.font = '12px sans-serif';
+        const w = ctx.measureText(label).width + 10;
+        const x = (n.pos[0] + offset[0]) * scale;
+        const y = (n.pos[1] - 30 + offset[1]) * scale - 22;
+        ctx.fillStyle = who.color;
+        ctx.fillRect(x, y, w, 18);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, x + 5, y + 13);
+      }
       for (const p of this.peers) {
         const sel = p.selected ? byGuid.get(p.selected) : undefined;
         if (sel) {
@@ -563,6 +630,11 @@ export class FlowGraphEditor {
 
   /** Sidebar field edit; returns the value actually stored (playscriptId is made unique). */
   setField(guid: string, field: string, raw: string) {
+    const owner = this.lockedBy.get(guid);
+    if (owner) {
+      this.onMessage(`${owner.name} 正在動這個節點，等一下再改。`);
+      return String(this.working.get(guid)?.data[field] ?? '');
+    }
     const n = this.working.get(guid);
     if (!n) return raw;
     const t = this.types.get(n.type);
@@ -689,12 +761,23 @@ export class FlowGraphEditor {
           )
         );
     for (const g of exp.deletedNodeGuids) nodes.delete(g);
+    const lite = new Map<string, LiteNode>();
+    for (const [node, guid] of this.canvas._debug.guidByNode())
+      lite.set(guid, node);
     for (const p of exp.nodePositions) {
       const n = nodes.get(p.guid);
-      if (n) {
-        n.position.x = p.x;
-        n.position.y = p.y;
+      if (!n) continue;
+      if (this.lockedBy.has(p.guid)) {
+        // Someone else controls it: whatever happened here doesn't count; put it back.
+        const ln = lite.get(p.guid);
+        if (ln) {
+          ln.pos[0] = n.position.x;
+          ln.pos[1] = n.position.y;
+        }
+        continue;
       }
+      n.position.x = p.x;
+      n.position.y = p.y;
     }
     const portKey = (e: {
       fromNodeGuid: string;

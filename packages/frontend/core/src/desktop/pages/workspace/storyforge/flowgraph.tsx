@@ -219,6 +219,7 @@ export const FlowGraphPage = () => {
         color: string;
         cursor?: { x: number; y: number } | null;
         selected?: string | null;
+        locked?: string[];
       }[] = [];
       awareness.getStates().forEach((st, cid) => {
         if (cid === awareness.clientID || !st?.user) return;
@@ -228,6 +229,7 @@ export const FlowGraphPage = () => {
           color: st.user.color,
           cursor: st.flowCursor ?? null,
           selected: st.flowSelected ?? null,
+          locked: Array.isArray(st.flowLocked) ? st.flowLocked : [],
         });
       });
       editor.setPeers(list);
@@ -239,8 +241,22 @@ export const FlowGraphPage = () => {
       awareness.off('change', update);
       awareness.setLocalStateField('flowCursor', null);
       awareness.setLocalStateField('flowSelected', null);
+      awareness.setLocalStateField('flowLocked', []);
     };
   }, [awareness, editor]);
+  // Broadcast the nodes I'm controlling (dragging / editing) so nobody else can move or edit them meanwhile.
+  useEffect(() => {
+    if (!mounted) return;
+    let last = '';
+    const timer = setInterval(() => {
+      const locks = editor.myLocks();
+      const key = locks.join(',');
+      if (key === last) return;
+      last = key;
+      awareness.setLocalStateField('flowLocked', locks);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [awareness, editor, mounted]);
   useEffect(() => {
     const el = box.current;
     if (!el || !mounted) return;
@@ -296,6 +312,9 @@ export const FlowGraphPage = () => {
     return () => window.removeEventListener('beforeunload', onBefore);
   }, [editor, mounted]);
 
+  // Re-evaluated whenever presence changes (peers state).
+  const lockName = node ? editor.lockedByName(node.guid) : null;
+  void peers;
   const memo = useMemo(
     () =>
       node && node.type === 'playscript' ? editor.memoText(node.guid) : null,
@@ -395,13 +414,26 @@ export const FlowGraphPage = () => {
                   <div className={styles.chapter} style={{ marginTop: 0 }}>
                     {node.typeLabel}
                   </div>
+                  {lockName && (
+                    <div
+                      className={styles.issues}
+                      style={{ marginTop: 0, marginBottom: 8 }}
+                    >
+                      🔒 {lockName} 正在動這個節點，暫時不能改
+                    </div>
+                  )}
                   {node.fields.map(f => (
                     <label key={f.name} className={styles.flowField}>
                       <span>{f.name}</span>
                       <input
                         key={`${node.guid}:${f.name}`}
                         defaultValue={f.value}
+                        disabled={!!lockName}
+                        onFocus={() => {
+                          editor.editingGuid = node.guid;
+                        }}
                         onBlur={e => {
+                          editor.editingGuid = null;
                           const stored = editor.setField(
                             node.guid,
                             f.name,
