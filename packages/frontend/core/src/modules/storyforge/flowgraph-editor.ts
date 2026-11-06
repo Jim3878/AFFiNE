@@ -48,7 +48,30 @@ type NodeTypeSchema = {
 };
 export type NodeSchemaDoc = { Version: number; NodeTypes: NodeTypeSchema[] };
 
+type LiteNode = {
+  pos: [number, number];
+  size: [number, number];
+  _displayTitle?: string;
+};
+type LiteCanvas = {
+  ds: { scale: number; offset: [number, number] };
+  ctx: CanvasRenderingContext2D;
+  canvas: HTMLCanvasElement;
+  onDrawOverlay?: (ctx: CanvasRenderingContext2D) => void;
+  setDirty(fg: boolean, bg?: boolean): void;
+  node_dragged?: unknown;
+  connecting_node?: unknown;
+  dragging_canvas?: boolean;
+  resizing_node?: unknown;
+  dragging_rectangle?: unknown;
+  pointer_is_down?: boolean;
+};
 type CanvasApi = {
+  _debug: {
+    getCanvas(): LiteCanvas;
+    getGraph(): { _nodes: LiteNode[] };
+    guidByNode(): Map<LiteNode, string>;
+  };
   init(canvasId: string, payload: unknown, ref: unknown): void;
   exportGraph(): {
     nodePositions: { guid: string; x: number; y: number }[];
@@ -235,8 +258,156 @@ export class FlowGraphEditor {
       this.buildPayload(this.loaded),
       this.dotnetShim()
     );
+    this.hookOverlay();
     this.onSelectNode(null);
     this.onSelectGroup(null);
+  }
+
+  // ---------- live editing ----------
+
+  /** Mid-gesture: don't save, reload or move nodes under the user's hands. */
+  isBusy() {
+    const c = this.canvas?._debug.getCanvas();
+    return (
+      !!c &&
+      !!(
+        c.node_dragged ||
+        c.connecting_node ||
+        c.dragging_canvas ||
+        c.resizing_node ||
+        c.dragging_rectangle ||
+        c.pointer_is_down
+      )
+    );
+  }
+
+  /**
+   * Takes in what others saved. Moves of nodes are applied to the canvas directly; anything else
+   * (added/removed nodes, links, groups, renamed nodes) needs a canvas rebuild, reported as 'structural'.
+   */
+  takeRemote(): 'none' | 'moved' | 'structural' {
+    if (!this.canvas || !this.loaded) return 'none';
+    const remote = sfFlow.readGraph(this.doc);
+    const strip = (g: CanonicalGraph) =>
+      JSON.stringify({
+        nodes: g.nodes.map(n => ({
+          ...n,
+          position: { ...n.position, x: 0, y: 0 },
+        })),
+        edges: [...g.edges]
+          .map(e => `${e.fromNode}.${e.fromPort}>${e.toNode}.${e.toPort}`)
+          .sort(),
+        groups: g.groups.map(gr => ({
+          id: gr.id,
+          title: gr.title,
+          color: gr.color,
+          nodes: [...gr.nodes].sort(),
+        })),
+      });
+    if (strip(remote) !== strip(this.loaded)) return 'structural';
+    const lite = this.canvas._debug;
+    const byGuid = new Map<string, LiteNode>();
+    for (const [node, guid] of lite.guidByNode()) byGuid.set(guid, node);
+    const base = new Map(this.loaded.nodes.map(n => [n.id, n]));
+    let moved = 0;
+    for (const n of remote.nodes) {
+      const b = base.get(n.id);
+      if (
+        !b ||
+        (b.position.x === n.position.x && b.position.y === n.position.y)
+      )
+        continue;
+      const lnode = byGuid.get(n.id);
+      if (lnode) {
+        lnode.pos[0] = n.position.x;
+        lnode.pos[1] = n.position.y;
+      }
+      b.position.x = n.position.x;
+      b.position.y = n.position.y;
+      const w = this.working.get(n.id);
+      if (w) {
+        w.position.x = n.position.x;
+        w.position.y = n.position.y;
+      }
+      moved++;
+    }
+    if (!moved) return 'none';
+    lite.getCanvas().setDirty(true, true);
+    return 'moved';
+  }
+
+  // ---------- presence ----------
+
+  private peers: {
+    name: string;
+    color: string;
+    cursor?: { x: number; y: number } | null;
+    selected?: string | null;
+  }[] = [];
+
+  setPeers(peers: typeof this.peers) {
+    this.peers = peers;
+    this.canvas?._debug.getCanvas().setDirty(true, false);
+  }
+
+  /** Canvas-space (graph) position of a mouse event, for sharing the cursor. */
+  graphPoint(e: MouseEvent) {
+    const c = this.canvas?._debug.getCanvas();
+    if (!c) return null;
+    const r = c.canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) / c.ds.scale - c.ds.offset[0],
+      y: (e.clientY - r.top) / c.ds.scale - c.ds.offset[1],
+    };
+  }
+
+  /** Chains onto the canvas overlay (re-done after every canvas rebuild). */
+  private hookOverlay() {
+    const c = this.canvas?._debug.getCanvas();
+    if (!c) return;
+    const own = c.onDrawOverlay;
+    c.onDrawOverlay = (ctx: CanvasRenderingContext2D) => {
+      own?.(ctx);
+      if (ctx !== c.ctx || this.peers.length === 0) return;
+      const { scale, offset } = c.ds;
+      const lite = this.canvas?._debug;
+      const byGuid = new Map<string, LiteNode>();
+      if (lite)
+        for (const [node, guid] of lite.guidByNode()) byGuid.set(guid, node);
+      ctx.save();
+      for (const p of this.peers) {
+        const sel = p.selected ? byGuid.get(p.selected) : undefined;
+        if (sel) {
+          const title = 30;
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(
+            (sel.pos[0] + offset[0]) * scale - 4,
+            (sel.pos[1] - title + offset[1]) * scale - 4,
+            sel.size[0] * scale + 8,
+            (sel.size[1] + title) * scale + 8
+          );
+        }
+        if (p.cursor) {
+          const x = (p.cursor.x + offset[0]) * scale;
+          const y = (p.cursor.y + offset[1]) * scale;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y + 18);
+          ctx.lineTo(x + 5, y + 13);
+          ctx.lineTo(x + 12, y + 13);
+          ctx.closePath();
+          ctx.fill();
+          ctx.font = '12px sans-serif';
+          const w = ctx.measureText(p.name).width + 10;
+          ctx.fillRect(x + 12, y + 14, w, 18);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(p.name, x + 17, y + 27);
+        }
+      }
+      ctx.restore();
+    };
   }
 
   fitView() {
@@ -602,7 +773,9 @@ export class FlowGraphEditor {
     const tables = this.syncTables(base, edited);
 
     this.canvas.markSaveSucceeded();
-    this.loaded = sfFlow.readGraph(this.doc);
+    // The new base is what this canvas shows (not the doc: it may hold others' changes the canvas has not
+    // taken in yet, which must not be "reverted" by the next save).
+    this.loaded = edited;
     this.working = new Map(
       this.loaded.nodes.map(n => [n.id, structuredClone(n)])
     );

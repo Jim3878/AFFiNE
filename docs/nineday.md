@@ -256,6 +256,8 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
     StoryForge's server side: builds the canvas payload, answers its callbacks, and turns 存檔 into per-field
     Yjs changes relative to what was loaded (others' saves in between survive). New 劇本 nodes get a table
     and an index entry; Memos are Y.Texts edited live. Another person's save reloads the canvas unless there
-    are unsaved edits.
+    are unsaved edits. Later: saves are automatic (every second, never mid-gesture), others' node moves are
+    applied in place, other changes rebuild the canvas; presence (cursor in graph coordinates, selected node,
+    avatars) goes through the doc's awareness and is drawn on the canvas overlay.
   - `AFFINE_DEV_PROXY_TARGET` (tools/cli `bundle-shared.ts`) points the web dev server at another
     backend, e.g. `https://affine.nineday.com.tw`, for trying frontend changes against real data.

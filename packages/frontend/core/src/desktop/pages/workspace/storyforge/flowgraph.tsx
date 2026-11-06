@@ -2,7 +2,9 @@
 // canvas local StoryForge uses. First version: explicit 存檔 (changes are merged per field with what others
 // saved meanwhile); when someone else saves, the canvas reloads by itself unless you have unsaved edits.
 import { Header } from '@affine/core/components/pure/header';
+import { AuthService } from '@affine/core/modules/cloud';
 import {
+  getSfAwareness,
   getSfDoc,
   sfSchema,
   useYDocVersion,
@@ -15,7 +17,7 @@ import {
 } from '@affine/core/modules/storyforge/flowgraph-editor';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import { WorkspaceService } from '@affine/core/modules/workspace';
-import { useService } from '@toeverything/infra';
+import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type * as Y from 'yjs';
 
@@ -28,6 +30,21 @@ import {
 import * as styles from './storyforge.css';
 
 const CANVAS_ID = 'sf-flow-canvas';
+const COLORS = [
+  '#f08a24',
+  '#2a9df4',
+  '#8e44ad',
+  '#2fa05a',
+  '#d6336c',
+  '#0ca5a5',
+  '#b8860b',
+  '#5b5ce0',
+];
+function colorFor(id: string) {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return COLORS[h % COLORS.length];
+}
 
 function MemoEditor({ text }: { text: Y.Text }) {
   const [value, setValue] = useState(text.toString());
@@ -68,6 +85,7 @@ function MemoEditor({ text }: { text: Y.Text }) {
 export const FlowGraphPage = () => {
   const workspace = useService(WorkspaceService).workspace;
   const workbench = useService(WorkbenchService).workbench;
+  const account = useLiveData(useService(AuthService).session.account$);
   const flowDoc = useMemo(
     () => getSfDoc(workspace, 'sf.flowgraph.main'),
     [workspace]
@@ -91,7 +109,6 @@ export const FlowGraphPage = () => {
   );
   const [mounted, setMounted] = useState(false);
   const [message, setMessage] = useState('');
-  const [remoteChanged, setRemoteChanged] = useState(false);
   const [node, setNode] = useState<SelectedNode | null>(null);
   const [group, setGroup] = useState<SelectedGroup | null>(null);
   const [query, setQuery] = useState('');
@@ -132,38 +149,125 @@ export const FlowGraphPage = () => {
     };
   }, [editor, hasGraph, nodeSchema, mounted, flowVersion]);
 
-  // Someone else saved: reload right away when nothing is pending here, otherwise say so.
+  // Live editing: every second, save what changed here (merged per field), then take in what others
+  // saved — moved nodes move in place, anything structural rebuilds the canvas. Never mid-gesture.
+  const remotePending = useRef(false);
   useEffect(() => {
     if (!mounted) return;
+    const graphTypes: Y.AbstractType<any>[] = [
+      'nodes',
+      'edges',
+      'groups',
+      'meta',
+    ].map(k => flowDoc.getMap(k));
     const onTx = (tr: Y.Transaction) => {
       if (tr.origin === FLOW_LOCAL) return;
-      const graphTypes: Y.AbstractType<any>[] = [
-        'nodes',
-        'edges',
-        'groups',
-        'meta',
-      ].map(k => flowDoc.getMap(k));
-      const touched = [...tr.changedParentTypes.keys()].some(t =>
-        graphTypes.some(g => isInside(t, g))
-      );
-      if (!touched) return;
-      if (editor.hasUnsavedChanges()) setRemoteChanged(true);
-      else editor.reload(CANVAS_ID);
+      if (
+        [...tr.changedParentTypes.keys()].some(t =>
+          graphTypes.some(g => isInside(t, g))
+        )
+      )
+        remotePending.current = true;
     };
     flowDoc.on('afterTransaction', onTx);
-    return () => flowDoc.off('afterTransaction', onTx);
+    const timer = setInterval(() => {
+      if (editor.isBusy()) return;
+      try {
+        if (editor.hasUnsavedChanges()) {
+          const r = editor.save();
+          setMessage(
+            `已自動儲存 ${new Date().toLocaleTimeString()}${r.tables ? `（建立 ${r.tables} 份劇本表格）` : ''}`
+          );
+        }
+        if (remotePending.current) {
+          remotePending.current = false;
+          if (editor.takeRemote() === 'structural') editor.reload(CANVAS_ID);
+        }
+      } catch (e) {
+        setMessage(`儲存失敗：${e instanceof Error ? e.message : String(e)}`);
+      }
+    }, 1000);
+    return () => {
+      flowDoc.off('afterTransaction', onTx);
+      clearInterval(timer);
+    };
   }, [editor, flowDoc, mounted]);
+
+  // Presence: my cursor (graph coordinates) and selected node; everyone else's drawn on the canvas.
+  const awareness = useMemo(
+    () => getSfAwareness(workspace, 'sf.flowgraph.main'),
+    [workspace]
+  );
+  const [peers, setPeers] = useState<
+    { id: number; name: string; color: string }[]
+  >([]);
+  useEffect(() => {
+    const id = account?.id ?? 'anonymous';
+    awareness.setLocalStateField('user', {
+      name: account?.label ?? '訪客',
+      color: colorFor(id),
+    });
+  }, [awareness, account]);
+  useEffect(() => {
+    awareness.setLocalStateField('flowSelected', node?.guid ?? null);
+  }, [awareness, node]);
+  useEffect(() => {
+    const update = () => {
+      const list: {
+        id: number;
+        name: string;
+        color: string;
+        cursor?: { x: number; y: number } | null;
+        selected?: string | null;
+      }[] = [];
+      awareness.getStates().forEach((st, cid) => {
+        if (cid === awareness.clientID || !st?.user) return;
+        list.push({
+          id: cid,
+          name: st.user.name,
+          color: st.user.color,
+          cursor: st.flowCursor ?? null,
+          selected: st.flowSelected ?? null,
+        });
+      });
+      editor.setPeers(list);
+      setPeers(list.map(p => ({ id: p.id, name: p.name, color: p.color })));
+    };
+    update();
+    awareness.on('change', update);
+    return () => {
+      awareness.off('change', update);
+      awareness.setLocalStateField('flowCursor', null);
+      awareness.setLocalStateField('flowSelected', null);
+    };
+  }, [awareness, editor]);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || !mounted) return;
+    let last = 0;
+    const onMove = (e: MouseEvent) => {
+      const now = performance.now();
+      if (now - last < 66) return; // ~15 Hz
+      last = now;
+      awareness.setLocalStateField('flowCursor', editor.graphPoint(e));
+    };
+    const onLeave = () => awareness.setLocalStateField('flowCursor', null);
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseleave', onLeave);
+    return () => {
+      el.removeEventListener('mousemove', onMove);
+      el.removeEventListener('mouseleave', onLeave);
+    };
+  }, [awareness, editor, mounted]);
 
   const save = useCallback(() => {
     try {
       const r = editor.save();
-      setRemoteChanged(false);
-      editor.reload(CANVAS_ID);
       setMessage(
-        `已存檔：${r.nodes} 個節點、${r.edges} 條連線、${r.groups} 個群組有變動${r.tables ? `，建立 ${r.tables} 份劇本表格` : ''}。`
+        `已儲存：${r.nodes} 個節點、${r.edges} 條連線、${r.groups} 個群組有變動${r.tables ? `，建立 ${r.tables} 份劇本表格` : ''}。`
       );
     } catch (e) {
-      setMessage(`存檔失敗：${e instanceof Error ? e.message : String(e)}`);
+      setMessage(`儲存失敗：${e instanceof Error ? e.message : String(e)}`);
     }
   }, [editor]);
 
@@ -203,7 +307,23 @@ export const FlowGraphPage = () => {
       <ViewTitle title="StoryForge 流程圖" />
       <ViewIcon icon="edgeless" />
       <ViewHeader>
-        <Header left={<div className={styles.header}>StoryForge 流程圖</div>} />
+        <Header
+          left={<div className={styles.header}>StoryForge 流程圖</div>}
+          right={
+            <div className={styles.avatars}>
+              {peers.map(p => (
+                <div
+                  key={p.id}
+                  className={styles.avatar}
+                  style={{ background: p.color }}
+                  title={p.name}
+                >
+                  {p.name.slice(0, 1)}
+                </div>
+              ))}
+            </div>
+          }
+        />
       </ViewHeader>
       <ViewBody>
         <div className={styles.flowPage}>
@@ -216,7 +336,7 @@ export const FlowGraphPage = () => {
               onClick={save}
               disabled={!mounted}
             >
-              💾 存檔（Ctrl+S）
+              💾 立即儲存（Ctrl+S）
             </button>
             <button
               className={styles.iconButton}
@@ -224,10 +344,9 @@ export const FlowGraphPage = () => {
               onClick={() => {
                 if (
                   editor.hasUnsavedChanges() &&
-                  !confirm('有沒存檔的修改，重新載入會丟掉它們。確定？')
+                  !confirm('還有幾秒內的修改沒存，重新載入會丟掉它們。確定？')
                 )
                   return;
-                setRemoteChanged(false);
                 editor.reload(CANVAS_ID);
               }}
             >
@@ -249,11 +368,6 @@ export const FlowGraphPage = () => {
                 if (e.key === 'Enter') editor.search(query);
               }}
             />
-            {remoteChanged && (
-              <span className={styles.issues}>
-                別人存了新版本：先存檔（會合併），或按重新載入
-              </span>
-            )}
             <span className={styles.muted}>{message}</span>
           </div>
           <div className={styles.flowMain}>
@@ -317,7 +431,7 @@ export const FlowGraphPage = () => {
                     </button>
                   )}
                   <div className={styles.muted} style={{ marginTop: 8 }}>
-                    欄位改完要按「存檔」才會寫進雲端；Memo 打字就會同步。
+                    改動每秒自動儲存並和別人的合併；Memo 打字就會同步。
                   </div>
                 </>
               ) : group ? (
@@ -360,7 +474,7 @@ export const FlowGraphPage = () => {
               ) : (
                 <div className={styles.muted}>
                   點節點看欄位和
-                  Memo。右鍵或從接點拖出線可以新增節點；新增的「劇本」節點存檔時會自動建立劇本表格。
+                  Memo。右鍵或從接點拖出線可以新增節點；新增並命名的「劇本」節點會自動建立劇本表格。
                 </div>
               )}
             </div>
