@@ -75,6 +75,7 @@ export function useYDocVersion(doc: Y.Doc | null) {
 export function useSfProject(workspace: Workspace): {
   exists: boolean;
   schemaVersion: number;
+  flowGraphEnabled: boolean;
   playscripts: PlayscriptIndexEntry[];
 } {
   const doc = useMemo(() => getSfDoc(workspace, 'sf.project'), [workspace]);

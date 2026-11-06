@@ -196,3 +196,71 @@ export const issues = style({
   fontSize: 12,
   color: cssVarV2('status/error'),
 });
+
+// ---------- flow graph ----------
+export const flowPage = style({
+  display: 'flex',
+  flexDirection: 'column',
+  height: '100%',
+  width: '100%',
+});
+export const flowMain = style({ display: 'flex', flex: 1, minHeight: 0 });
+export const flowCanvasBox = style({
+  position: 'relative',
+  flex: 1,
+  minWidth: 0,
+  background: '#222',
+});
+export const flowCanvas = style({
+  position: 'absolute',
+  inset: 0,
+  width: '100%',
+  height: '100%',
+});
+export const flowSide = style({
+  width: 280,
+  flexShrink: 0,
+  padding: 12,
+  overflowY: 'auto',
+  borderLeft: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  color: cssVarV2('text/primary'),
+  fontSize: 13,
+});
+export const flowField = style({ display: 'block', marginBottom: 10 });
+globalStyle(`${flowField} > span`, {
+  display: 'block',
+  marginBottom: 4,
+  color: cssVarV2('text/secondary'),
+  fontSize: 12,
+});
+globalStyle(`${flowField} input`, {
+  width: '100%',
+  boxSizing: 'border-box',
+  height: 30,
+  padding: '0 8px',
+  borderRadius: 6,
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/primary'),
+});
+export const flowMemo = style({
+  width: '100%',
+  minHeight: 140,
+  boxSizing: 'border-box',
+  padding: 8,
+  borderRadius: 6,
+  resize: 'vertical',
+  border: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVarV2('text/primary'),
+  font: 'inherit',
+});
+export const flowButton = style({
+  border: 'none',
+  borderRadius: 6,
+  padding: '5px 12px',
+  cursor: 'pointer',
+  background: cssVarV2('button/primary'),
+  color: cssVarV2('button/pureWhiteText'),
+  selectors: { '&:disabled': { opacity: 0.5, cursor: 'default' } },
+});

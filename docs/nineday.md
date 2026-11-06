@@ -250,5 +250,12 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   - Pages `/storyforge` (list by chapter) and `/storyforge/:guid` (table: fixed 7 columns, one Y.Text
     per cell, IME-safe editing, others' focused cells via awareness, closed-list checks from the rules
     doc, undo/redo of own edits only). Sidebar entry only when the workspace has `db$sf.project`.
+  - `/storyforge/flowgraph`: the project's flow graph (`db$sf.flowgraph.main`, layout in `shared/flowgraph.ts`)
+    on StoryForge's own canvas (`graph-editor.js` + LiteGraph, copied into `core/public/sf-assets/` by the
+    StoryForge repo and loaded as plain scripts). `modules/storyforge/flowgraph-editor.ts` stands in for
+    StoryForge's server side: builds the canvas payload, answers its callbacks, and turns 存檔 into per-field
+    Yjs changes relative to what was loaded (others' saves in between survive). New 劇本 nodes get a table
+    and an index entry; Memos are Y.Texts edited live. Another person's save reloads the canvas unless there
+    are unsaved edits.
   - `AFFINE_DEV_PROXY_TARGET` (tools/cli `bundle-shared.ts`) points the web dev server at another
     backend, e.g. `https://affine.nineday.com.tw`, for trying frontend changes against real data.

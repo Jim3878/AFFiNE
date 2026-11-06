@@ -35,6 +35,10 @@ export const workbenchRoutes = [
     lazy: () => import('./pages/workspace/storyforge/index'),
   },
   {
+    path: '/storyforge/flowgraph',
+    lazy: () => import('./pages/workspace/storyforge/flowgraph'),
+  },
+  {
     path: '/storyforge/:guid',
     lazy: () => import('./pages/workspace/storyforge/playscript'),
   },
