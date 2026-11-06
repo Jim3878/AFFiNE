@@ -1,5 +1,8 @@
 import type { Configuration as RspackDevServerConfiguration } from '@rspack/dev-server';
 
+const devProxyTarget =
+  process.env.AFFINE_DEV_PROXY_TARGET || 'http://localhost:3010';
+
 export const RSPACK_SUPPORTED_PACKAGES = [
   '@affine/admin',
   '@affine/web',
@@ -54,19 +57,24 @@ export const DEFAULT_DEV_SERVER_CONFIG: RspackDevServerConfiguration = {
       },
     ],
   },
+  // NineDay: AFFINE_DEV_PROXY_TARGET points the dev server at another backend (for example our
+  // self-hosted server) instead of a local one on :3010.
   proxy: [
     {
       context: '/api',
-      target: 'http://localhost:3010',
+      target: devProxyTarget,
+      changeOrigin: true,
     },
     {
       context: '/socket.io',
-      target: 'http://localhost:3010',
+      target: devProxyTarget,
       ws: true,
+      changeOrigin: true,
     },
     {
       context: '/graphql',
-      target: 'http://localhost:3010',
+      target: devProxyTarget,
+      changeOrigin: true,
     },
   ],
 };

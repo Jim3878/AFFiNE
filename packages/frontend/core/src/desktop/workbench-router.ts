@@ -29,6 +29,15 @@ export const workbenchRoutes = [
     path: '/trash',
     lazy: () => import('./pages/workspace/trash-page'),
   },
+  // NineDay StoryForge module (before /:pageId so it is not taken as a doc id)
+  {
+    path: '/storyforge',
+    lazy: () => import('./pages/workspace/storyforge/index'),
+  },
+  {
+    path: '/storyforge/:guid',
+    lazy: () => import('./pages/workspace/storyforge/playscript'),
+  },
   {
     path: '/:pageId',
     lazy: () => import('./pages/workspace/detail-page/detail-page'),

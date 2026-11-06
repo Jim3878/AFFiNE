@@ -240,3 +240,15 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
 - Local testing: `yarn affine @affine/web dev` (port 8080, proxies `/api`, `/graphql`, `/socket.io`
   to `localhost:3010`) + an SSH tunnel to a staging backend whose `externalUrl` is
   `http://localhost:8080` (CORS); use a **local workspace** in the browser so no login is needed.
+- **StoryForge module** (not yet released): StoryForge's playscript tables as their own docs, co-edited live.
+  - Docs live outside BlockSuite as workspace db docs: local id `db$sf.project` / `db$sf.rules` /
+    `db$sf.playscript.<node guid>` (nbstore maps them to `db$<workspaceId>$…` on the server, like
+    `db$folders`), opened through `workspace.engine.doc.connectDoc` (`modules/storyforge/docs.ts`).
+  - The data layout (`modules/storyforge/shared/`) is generated from the StoryForge repo
+    (`cloud/scripts/copy-schema-to-affine.mjs`); the same code is used by the affine-mcp StoryForge
+    extension and local StoryForge, so edit it there, not here.
+  - Pages `/storyforge` (list by chapter) and `/storyforge/:guid` (table: fixed 7 columns, one Y.Text
+    per cell, IME-safe editing, others' focused cells via awareness, closed-list checks from the rules
+    doc, undo/redo of own edits only). Sidebar entry only when the workspace has `db$sf.project`.
+  - `AFFINE_DEV_PROXY_TARGET` (tools/cli `bundle-shared.ts`) points the web dev server at another
+    backend, e.g. `https://affine.nineday.com.tw`, for trying frontend changes against real data.
