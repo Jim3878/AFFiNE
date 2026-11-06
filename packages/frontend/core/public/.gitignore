@@ -2,3 +2,5 @@
 *.map
 
 plugins
+# NineDay: StoryForge canvas scripts are copied in from the StoryForge repo, not generated
+!sf-assets/*.js
