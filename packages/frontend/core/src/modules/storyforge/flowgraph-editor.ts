@@ -6,6 +6,7 @@
 // loaded, so other people's saves in between are kept.
 import * as Y from 'yjs';
 
+import { SF_ASSETS_VERSION } from './shared/assets-version';
 import {
   type CanonicalEdge,
   type CanonicalGraph,
@@ -118,11 +119,11 @@ export function loadCanvasScripts(): Promise<CanvasApi> {
   scriptsLoading ??= (async () => {
     const css = document.createElement('link');
     css.rel = 'stylesheet';
-    css.href = '/sf-assets/litegraph.css';
+    css.href = `/sf-assets/litegraph.css?v=${SF_ASSETS_VERSION}`;
     document.head.append(css);
     for (const src of [
-      '/sf-assets/litegraph.min.js',
-      '/sf-assets/graph-editor.js',
+      `/sf-assets/litegraph.min.js?v=${SF_ASSETS_VERSION}`,
+      `/sf-assets/graph-editor.js?v=${SF_ASSETS_VERSION}`,
     ]) {
       await new Promise<void>((resolve, reject) => {
         const s = document.createElement('script');
@@ -380,6 +381,9 @@ export class FlowGraphEditor {
     };
     const count = Object.values(changes).reduce((a, v) => a + v.length, 0);
     if (!count) return 'none';
+    // An older cached graph-editor.js has no in-place update: rebuild instead of failing every time.
+    if (typeof this.canvas.applyRemoteChanges !== 'function')
+      return 'structural';
     this.canvas.applyRemoteChanges(changes);
     this.loaded = remote;
     // Called right after this editor saved its own edits, so nothing local is pending to keep.
