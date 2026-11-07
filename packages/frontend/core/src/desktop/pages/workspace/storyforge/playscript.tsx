@@ -7,6 +7,7 @@ import {
   getSfAwareness,
   sfSchema,
   usePlayscriptDoc,
+  usePresenceUser,
   useSfProject,
   useSfRules,
 } from '@affine/core/modules/storyforge/docs';
@@ -35,16 +36,6 @@ import {
 import * as styles from './storyforge.css';
 
 const LOCAL = 'sf-local';
-const COLORS = [
-  '#f08a24',
-  '#2a9df4',
-  '#8e44ad',
-  '#2fa05a',
-  '#d6336c',
-  '#0ca5a5',
-  '#b8860b',
-  '#5b5ce0',
-];
 const WIDTHS: Record<ColumnKey, string> = {
   name: '9%',
   face: '9%',
@@ -63,12 +54,6 @@ type Peer = {
   color: string;
   cursor: Cursor | null;
 };
-
-function colorFor(id: string) {
-  let h = 0;
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return COLORS[h % COLORS.length];
-}
 
 function cellText(doc: Y.Doc, rowId: string, col: ColumnKey): Y.Text {
   const row = doc.getMap<Y.Map<Y.Text>>('rows').get(rowId);
@@ -258,14 +243,8 @@ export const PlayscriptPage = () => {
     return () => um.destroy();
   }, [doc]);
 
-  // awareness: who I am, which cell I am in; everyone else's
-  useEffect(() => {
-    const id = account?.id ?? 'anonymous';
-    awareness.setLocalStateField('user', {
-      name: account?.label ?? '訪客',
-      color: colorFor(id),
-    });
-  }, [awareness, account]);
+  // awareness: who I am (name + a colour nobody else here has)
+  usePresenceUser(awareness, account);
   useEffect(() => {
     awareness.setLocalStateField('sf', editing);
   }, [awareness, editing]);

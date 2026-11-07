@@ -102,6 +102,7 @@ type CanvasApi = {
   setGroupProperties(clientId: string, title: string, color: string): void;
   fitView(): void;
   updateNodeTitle(guid: string, title: string, hasIdentityTitle: boolean): void;
+  applyRemoteChanges(changes: unknown): void;
   searchNode(query: string): unknown;
 };
 
@@ -286,83 +287,169 @@ export class FlowGraphEditor {
   }
 
   /**
-   * Takes in what others saved. Moves of nodes are applied to the canvas directly; anything else
-   * (added/removed nodes, links, groups, renamed nodes) needs a canvas rebuild, reported as 'structural'.
+   * Takes in what others saved, applied to the canvas in place (graph-editor.js applyRemoteChanges):
+   * moved/added/removed nodes and links, renamed nodes, group titles/colours/members. Only an added or
+   * removed group, or a node whose type changed, needs a canvas rebuild ('structural').
    */
-  takeRemote(): 'none' | 'moved' | 'structural' {
+  takeRemote(): 'none' | 'applied' | 'structural' {
     if (!this.canvas || !this.loaded) return 'none';
     const remote = sfFlow.readGraph(this.doc);
-    const strip = (g: CanonicalGraph) =>
-      JSON.stringify({
-        nodes: g.nodes.map(n => ({
-          ...n,
-          position: { ...n.position, x: 0, y: 0 },
-        })),
-        edges: [...g.edges]
-          .map(e => `${e.fromNode}.${e.fromPort}>${e.toNode}.${e.toPort}`)
-          .sort(),
-        groups: g.groups.map(gr => ({
-          id: gr.id,
-          title: gr.title,
-          color: gr.color,
-          nodes: [...gr.nodes].sort(),
-        })),
-      });
-    if (strip(remote) !== strip(this.loaded)) return 'structural';
-    const lite = this.canvas._debug;
-    const byGuid = new Map<string, LiteNode>();
-    for (const [node, guid] of lite.guidByNode()) byGuid.set(guid, node);
-    const base = new Map(this.loaded.nodes.map(n => [n.id, n]));
-    let moved = 0;
+    const base = this.loaded;
+    const baseNodes = new Map(base.nodes.map(n => [n.id, n]));
+    const remoteNodes = new Map(remote.nodes.map(n => [n.id, n]));
+    const baseGroups = new Map(base.groups.map(g => [g.id, g]));
+    const remoteGroups = new Map(remote.groups.map(g => [g.id, g]));
+    if (
+      baseGroups.size !== remoteGroups.size ||
+      [...remoteGroups.keys()].some(id => !baseGroups.has(id))
+    )
+      return 'structural';
     for (const n of remote.nodes) {
-      const b = base.get(n.id);
-      if (
-        !b ||
-        (b.position.x === n.position.x && b.position.y === n.position.y)
-      )
-        continue;
-      const lnode = byGuid.get(n.id);
-      if (lnode) {
-        lnode.pos[0] = n.position.x;
-        lnode.pos[1] = n.position.y;
-      }
-      b.position.x = n.position.x;
-      b.position.y = n.position.y;
-      const w = this.working.get(n.id);
-      if (w) {
-        w.position.x = n.position.x;
-        w.position.y = n.position.y;
-      }
-      moved++;
+      const b = baseNodes.get(n.id);
+      if (b && b.type !== n.type) return 'structural';
     }
-    if (!moved) return 'none';
-    lite.getCanvas().setDirty(true, true);
-    return 'moved';
+    const edgeKey = (e: CanonicalEdge) =>
+      `${e.fromNode}.${e.fromPort}>${e.toNode}.${e.toPort}`;
+    const toDto = (e: CanonicalEdge) => ({
+      fromNodeGuid: e.fromNode,
+      fromPort: e.fromPort,
+      toNodeGuid: e.toNode,
+      toPort: e.toPort,
+    });
+    const baseEdges = new Map(base.edges.map(e => [edgeKey(e), e]));
+    const remoteEdges = new Map(remote.edges.map(e => [edgeKey(e), e]));
+    const payload = this.buildPayload(remote);
+    const dtoById = new Map(payload.nodes.map(n => [n.guid, n]));
+    const changes = {
+      removeNodes: base.nodes
+        .filter(n => !remoteNodes.has(n.id))
+        .map(n => n.id),
+      addNodes: remote.nodes
+        .filter(n => !baseNodes.has(n.id))
+        .map(n => dtoById.get(n.id)),
+      removeEdges: [...baseEdges]
+        .filter(([k]) => !remoteEdges.has(k))
+        .map(([, e]) => toDto(e)),
+      addEdges: [...remoteEdges]
+        .filter(([k]) => !baseEdges.has(k))
+        .map(([, e]) => toDto(e)),
+      positions: remote.nodes
+        .filter(n => {
+          const b = baseNodes.get(n.id);
+          return (
+            b &&
+            (b.position.x !== n.position.x || b.position.y !== n.position.y)
+          );
+        })
+        .map(n => ({ guid: n.id, x: n.position.x, y: n.position.y })),
+      titles: remote.nodes
+        .filter(n => {
+          const b = baseNodes.get(n.id);
+          return b && JSON.stringify(b.data) !== JSON.stringify(n.data);
+        })
+        .map(n => ({ guid: n.id, ...this.titleOf(n) })),
+      groups: remote.groups
+        .filter(g => {
+          const b = baseGroups.get(g.id);
+          return (
+            b &&
+            (b.title !== g.title ||
+              JSON.stringify(b.color) !== JSON.stringify(g.color) ||
+              JSON.stringify([...b.nodes].sort()) !==
+                JSON.stringify([...g.nodes].sort()))
+          );
+        })
+        .map(g => ({
+          clientId: g.id,
+          title: g.title,
+          color: toHex(g.color),
+          memberNodeGuids: [...g.nodes],
+        })),
+    };
+    const count = Object.values(changes).reduce((a, v) => a + v.length, 0);
+    if (!count) return 'none';
+    this.canvas.applyRemoteChanges(changes);
+    this.loaded = remote;
+    // Called right after this editor saved its own edits, so nothing local is pending to keep.
+    this.working = new Map(remote.nodes.map(n => [n.id, structuredClone(n)]));
+    this.applyLocks();
+    return 'applied';
   }
 
   // ---------- presence ----------
 
   private peers: {
+    id: number;
     name: string;
     color: string;
     cursor?: { x: number; y: number } | null;
     selected?: string | null;
-    locked?: string[];
+    /** guid -> when they took it (ms since epoch). */
+    locked?: Record<string, number>;
   }[] = [];
   /** Nodes someone else is dragging or editing right now -> who. */
   private lockedBy = new Map<string, { name: string; color: string }>();
   /** The node whose fields I am editing in the side panel (part of my locks). */
   editingGuid: string | null = null;
 
-  setPeers(peers: typeof this.peers) {
+  private myId = 0;
+
+  /** When I took each node I hold (kept while I keep holding it). */
+  private mySince = new Map<string, number>();
+
+  /**
+   * Others' presence. A node someone holds (selected, dragged or edited) is locked for everyone else.
+   * If two people take the same node, whoever took it first keeps it (lower client id on an exact tie);
+   * both sides apply the same rule, so the other one drops it.
+   */
+  setPeers(peers: typeof this.peers, myId: number) {
     this.peers = peers;
-    this.lockedBy = new Map();
+    this.myId = myId;
+    const owner = new Map<
+      string,
+      { since: number; id: number; name: string; color: string }
+    >();
     for (const p of peers)
-      for (const g of p.locked ?? [])
-        if (!this.lockedBy.has(g))
-          this.lockedBy.set(g, { name: p.name, color: p.color });
+      for (const [g, since] of Object.entries(p.locked ?? {})) {
+        const cur = owner.get(g);
+        if (!cur || since < cur.since || (since === cur.since && p.id < cur.id))
+          owner.set(g, { since, id: p.id, name: p.name, color: p.color });
+      }
+    this.lockedBy = new Map();
+    for (const [g, o] of owner) {
+      const mine = this.mySince.get(g);
+      if (
+        mine !== undefined &&
+        (mine < o.since || (mine === o.since && this.myId < o.id))
+      )
+        continue;
+      this.lockedBy.set(g, { name: o.name, color: o.color });
+    }
     this.applyLocks();
     this.canvas?._debug.getCanvas().setDirty(true, false);
+  }
+
+  /** Centres the view on where someone is (their cursor, else their selected node). */
+  focusPeer(id: number) {
+    const p = this.peers.find(x => x.id === id);
+    const c = this.canvas?._debug.getCanvas();
+    if (!p || !c || !this.canvas) return false;
+    let target = p.cursor ?? null;
+    if (!target && p.selected) {
+      for (const [node, guid] of this.canvas._debug.guidByNode())
+        if (guid === p.selected)
+          target = {
+            x: node.pos[0] + node.size[0] / 2,
+            y: node.pos[1] + node.size[1] / 2,
+          };
+    }
+    if (!target) return false;
+    const w = c.canvas.clientWidth;
+    const h = c.canvas.clientHeight;
+    c.ds.offset[0] = w / (2 * c.ds.scale) - target.x;
+    c.ds.offset[1] = h / (2 * c.ds.scale) - target.y;
+    c.setDirty(true, true);
+    return true;
   }
 
   lockedByName(guid: string) {
@@ -370,19 +457,38 @@ export class FlowGraphEditor {
   }
 
   /** Nodes I am controlling now (dragging, or editing in the side panel): broadcast so others can't touch them. */
-  myLocks(): string[] {
+  /** False while the tab is hidden or idle, so a forgotten selection doesn't keep others locked out. */
+  holdSelection = true;
+
+  /** What I hold, with when I took it; never a node someone else already holds. */
+  myLocks(): Record<string, number> {
+    // A click can still select a pinned node; drop it again so it can't ride along in a drag.
+    if (this.lockedBy.size) this.applyLocks();
     const out = new Set<string>();
     const c = this.canvas?._debug.getCanvas();
-    if (c?.node_dragged && this.canvas) {
+    if (c && this.canvas) {
       const guids = this.canvas._debug.guidByNode();
-      const moving = Object.values(c.selected_nodes ?? {});
-      for (const n of moving.length ? moving : [c.node_dragged as LiteNode]) {
+      const held =
+        this.holdSelection || c.node_dragged
+          ? Object.values(c.selected_nodes ?? {})
+          : [];
+      if (c.node_dragged && !held.includes(c.node_dragged as LiteNode))
+        held.push(c.node_dragged as LiteNode);
+      for (const n of held) {
         const g = guids.get(n);
         if (g) out.add(g);
       }
     }
     if (this.editingGuid) out.add(this.editingGuid);
-    return [...out].sort();
+    const now = Date.now();
+    const result: Record<string, number> = {};
+    for (const g of [...out].sort()) {
+      if (this.lockedBy.has(g)) continue;
+      const since = this.mySince.get(g) ?? now;
+      result[g] = since;
+    }
+    this.mySince = new Map(Object.entries(result));
+    return result;
   }
 
   // A node someone else controls is pinned (LiteGraph won't start dragging it) and taken out of my
@@ -458,6 +564,45 @@ export class FlowGraphEditor {
         if (p.cursor) {
           const x = (p.cursor.x + offset[0]) * scale;
           const y = (p.cursor.y + offset[1]) * scale;
+          const w = c.canvas.clientWidth;
+          const h = c.canvas.clientHeight;
+          if (x < 0 || y < 0 || x > w || y > h) {
+            // Off screen: a marker on the edge, pointing at where they are.
+            const m = 18;
+            const ex = Math.min(w - m, Math.max(m, x));
+            const ey = Math.min(h - m, Math.max(m, y));
+            const ang = Math.atan2(y - ey, x - ex);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.moveTo(ex + Math.cos(ang) * 16, ey + Math.sin(ang) * 16);
+            ctx.lineTo(
+              ex + Math.cos(ang + 2.5) * 9,
+              ey + Math.sin(ang + 2.5) * 9
+            );
+            ctx.lineTo(
+              ex + Math.cos(ang - 2.5) * 9,
+              ey + Math.sin(ang - 2.5) * 9
+            );
+            ctx.closePath();
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(ex, ey, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.name.slice(0, 1), ex, ey + 4);
+            ctx.font = '11px sans-serif';
+            const lw = ctx.measureText(p.name).width + 8;
+            const lx = Math.min(w - lw - 2, Math.max(2, ex - lw / 2));
+            const ly = ey > h / 2 ? ey - 32 : ey + 14;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(lx, ly, lw, 16);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(p.name, lx + lw / 2, ly + 12);
+            ctx.textAlign = 'start';
+            continue;
+          }
           ctx.fillStyle = p.color;
           ctx.beginPath();
           ctx.moveTo(x, y);
@@ -467,8 +612,8 @@ export class FlowGraphEditor {
           ctx.closePath();
           ctx.fill();
           ctx.font = '12px sans-serif';
-          const w = ctx.measureText(p.name).width + 10;
-          ctx.fillRect(x + 12, y + 14, w, 18);
+          const tw = ctx.measureText(p.name).width + 10;
+          ctx.fillRect(x + 12, y + 14, tw, 18);
           ctx.fillStyle = '#fff';
           ctx.fillText(p.name, x + 17, y + 27);
         }

@@ -112,3 +112,62 @@ export function usePlayscriptDoc(workspace: Workspace, guid: string) {
   );
   return { doc, rows, version };
 }
+
+// ---------- presence colours ----------
+
+export const PRESENCE_COLORS = [
+  '#f08a24',
+  '#2a9df4',
+  '#8e44ad',
+  '#2fa05a',
+  '#d6336c',
+  '#0ca5a5',
+  '#b8860b',
+  '#5b5ce0',
+  '#e03131',
+  '#1098ad',
+  '#9c36b5',
+  '#5c940d',
+];
+
+function preferredColor(id: string) {
+  let h = 0;
+  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h % PRESENCE_COLORS.length;
+}
+
+/**
+ * Publishes { name, color } as this client's awareness `user`. The colour is the person's usual one unless
+ * someone who joined earlier (lower client id) already has it, then the next free one; everyone applies the
+ * same rule, so colours settle without coordination.
+ */
+export function usePresenceUser(
+  awareness: Awareness,
+  account: { id: string; label: string } | null | undefined
+) {
+  useEffect(() => {
+    const name = account?.label ?? '訪客';
+    const start = preferredColor(account?.id ?? 'anonymous');
+    const pick = () => {
+      const taken = new Set<string>();
+      awareness.getStates().forEach((st, cid) => {
+        if (cid < awareness.clientID && st?.user?.color)
+          taken.add(st.user.color);
+      });
+      let color = PRESENCE_COLORS[start];
+      for (let k = 0; k < PRESENCE_COLORS.length; k++) {
+        const c = PRESENCE_COLORS[(start + k) % PRESENCE_COLORS.length];
+        if (!taken.has(c)) {
+          color = c;
+          break;
+        }
+      }
+      const cur = awareness.getLocalState()?.user;
+      if (cur?.color !== color || cur?.name !== name)
+        awareness.setLocalStateField('user', { name, color });
+    };
+    pick();
+    awareness.on('change', pick);
+    return () => awareness.off('change', pick);
+  }, [awareness, account]);
+}

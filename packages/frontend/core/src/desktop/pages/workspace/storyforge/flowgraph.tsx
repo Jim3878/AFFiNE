@@ -7,6 +7,7 @@ import {
   getSfAwareness,
   getSfDoc,
   sfSchema,
+  usePresenceUser,
   useYDocVersion,
 } from '@affine/core/modules/storyforge/docs';
 import {
@@ -30,21 +31,6 @@ import {
 import * as styles from './storyforge.css';
 
 const CANVAS_ID = 'sf-flow-canvas';
-const COLORS = [
-  '#f08a24',
-  '#2a9df4',
-  '#8e44ad',
-  '#2fa05a',
-  '#d6336c',
-  '#0ca5a5',
-  '#b8860b',
-  '#5b5ce0',
-];
-function colorFor(id: string) {
-  let h = 0;
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return COLORS[h % COLORS.length];
-}
 
 function MemoEditor({ text }: { text: Y.Text }) {
   const [value, setValue] = useState(text.toString());
@@ -149,7 +135,7 @@ export const FlowGraphPage = () => {
     };
   }, [editor, hasGraph, nodeSchema, mounted, flowVersion]);
 
-  // Live editing: every second, save what changed here (merged per field), then take in what others
+  // Live editing: every 250 ms, save what changed here (merged per field), then take in what others
   // saved — moved nodes move in place, anything structural rebuilds the canvas. Never mid-gesture.
   const remotePending = useRef(false);
   useEffect(() => {
@@ -160,17 +146,8 @@ export const FlowGraphPage = () => {
       'groups',
       'meta',
     ].map(k => flowDoc.getMap(k));
-    const onTx = (tr: Y.Transaction) => {
-      if (tr.origin === FLOW_LOCAL) return;
-      if (
-        [...tr.changedParentTypes.keys()].some(t =>
-          graphTypes.some(g => isInside(t, g))
-        )
-      )
-        remotePending.current = true;
-    };
-    flowDoc.on('afterTransaction', onTx);
-    const timer = setInterval(() => {
+    let soon: ReturnType<typeof setTimeout> | null = null;
+    const tick = () => {
       if (editor.isBusy()) return;
       try {
         if (editor.hasUnsavedChanges()) {
@@ -186,10 +163,29 @@ export const FlowGraphPage = () => {
       } catch (e) {
         setMessage(`儲存失敗：${e instanceof Error ? e.message : String(e)}`);
       }
-    }, 1000);
+    };
+    // Others' changes are taken in right away (not on the next tick) so adds/deletes show up fast.
+    const onTx = (tr: Y.Transaction) => {
+      if (tr.origin === FLOW_LOCAL) return;
+      if (
+        ![...tr.changedParentTypes.keys()].some(t =>
+          graphTypes.some(g => isInside(t, g))
+        )
+      )
+        return;
+      remotePending.current = true;
+      if (!soon)
+        soon = setTimeout(() => {
+          soon = null;
+          tick();
+        }, 30);
+    };
+    flowDoc.on('afterTransaction', onTx);
+    const timer = setInterval(tick, 250);
     return () => {
       flowDoc.off('afterTransaction', onTx);
       clearInterval(timer);
+      if (soon) clearTimeout(soon);
     };
   }, [editor, flowDoc, mounted]);
 
@@ -201,13 +197,8 @@ export const FlowGraphPage = () => {
   const [peers, setPeers] = useState<
     { id: number; name: string; color: string }[]
   >([]);
-  useEffect(() => {
-    const id = account?.id ?? 'anonymous';
-    awareness.setLocalStateField('user', {
-      name: account?.label ?? '訪客',
-      color: colorFor(id),
-    });
-  }, [awareness, account]);
+  // awareness: who I am (name + a colour nobody else here has)
+  usePresenceUser(awareness, account);
   useEffect(() => {
     awareness.setLocalStateField('flowSelected', node?.guid ?? null);
   }, [awareness, node]);
@@ -219,7 +210,7 @@ export const FlowGraphPage = () => {
         color: string;
         cursor?: { x: number; y: number } | null;
         selected?: string | null;
-        locked?: string[];
+        locked?: Record<string, number>;
       }[] = [];
       awareness.getStates().forEach((st, cid) => {
         if (cid === awareness.clientID || !st?.user) return;
@@ -229,10 +220,15 @@ export const FlowGraphPage = () => {
           color: st.user.color,
           cursor: st.flowCursor ?? null,
           selected: st.flowSelected ?? null,
-          locked: Array.isArray(st.flowLocked) ? st.flowLocked : [],
+          locked:
+            st.flowLocked &&
+            typeof st.flowLocked === 'object' &&
+            !Array.isArray(st.flowLocked)
+              ? st.flowLocked
+              : {},
         });
       });
-      editor.setPeers(list);
+      editor.setPeers(list, awareness.clientID);
       setPeers(list.map(p => ({ id: p.id, name: p.name, color: p.color })));
     };
     update();
@@ -241,21 +237,36 @@ export const FlowGraphPage = () => {
       awareness.off('change', update);
       awareness.setLocalStateField('flowCursor', null);
       awareness.setLocalStateField('flowSelected', null);
-      awareness.setLocalStateField('flowLocked', []);
+      awareness.setLocalStateField('flowLocked', {});
     };
   }, [awareness, editor]);
-  // Broadcast the nodes I'm controlling (dragging / editing) so nobody else can move or edit them meanwhile.
+  // Broadcast the nodes I'm holding (selected, dragged, edited) so nobody else can move or edit them
+  // meanwhile. A selection stops counting while the tab is hidden or after 2 minutes without input.
   useEffect(() => {
     if (!mounted) return;
     let last = '';
+    let lastInput = Date.now();
+    const onInput = () => {
+      lastInput = Date.now();
+    };
+    window.addEventListener('pointerdown', onInput, true);
+    window.addEventListener('pointermove', onInput, true);
+    window.addEventListener('keydown', onInput, true);
     const timer = setInterval(() => {
+      editor.holdSelection =
+        !document.hidden && Date.now() - lastInput < 120_000;
       const locks = editor.myLocks();
-      const key = locks.join(',');
+      const key = JSON.stringify(locks);
       if (key === last) return;
       last = key;
       awareness.setLocalStateField('flowLocked', locks);
     }, 100);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('pointerdown', onInput, true);
+      window.removeEventListener('pointermove', onInput, true);
+      window.removeEventListener('keydown', onInput, true);
+    };
   }, [awareness, editor, mounted]);
   useEffect(() => {
     const el = box.current;
@@ -334,8 +345,12 @@ export const FlowGraphPage = () => {
                 <div
                   key={p.id}
                   className={styles.avatar}
-                  style={{ background: p.color }}
-                  title={p.name}
+                  style={{ background: p.color, cursor: 'pointer' }}
+                  title={`${p.name}（點一下跳到他那裡）`}
+                  onClick={() => {
+                    if (!editor.focusPeer(p.id))
+                      setMessage(`${p.name} 的游標不在畫布上`);
+                  }}
                 >
                   {p.name.slice(0, 1)}
                 </div>
