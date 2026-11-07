@@ -271,18 +271,30 @@ export class FlowGraphEditor {
   // ---------- live editing ----------
 
   /** Mid-gesture: don't save, reload or move nodes under the user's hands. */
+  /**
+   * Set from window-level pointer events by the page. LiteGraph's own flags (pointer_is_down,
+   * dragging_canvas, node_dragged...) stay set when the button is released outside the canvas, which used
+   * to freeze syncing for good; they only count while the button is really down.
+   */
+  pointerDown = false;
+  private pointerDownSince = 0;
+
+  setPointerDown(down: boolean) {
+    this.pointerDown = down;
+    this.pointerDownSince = down ? Date.now() : 0;
+  }
+
   isBusy() {
     const c = this.canvas?._debug.getCanvas();
-    return (
-      !!c &&
-      !!(
-        c.node_dragged ||
-        c.connecting_node ||
-        c.dragging_canvas ||
-        c.resizing_node ||
-        c.dragging_rectangle ||
-        c.pointer_is_down
-      )
+    if (!c || !this.pointerDown) return false;
+    // A gesture longer than a minute is treated as stuck, not as a real drag.
+    if (Date.now() - this.pointerDownSince > 60_000) return false;
+    return !!(
+      c.node_dragged ||
+      c.connecting_node ||
+      c.dragging_canvas ||
+      c.resizing_node ||
+      c.dragging_rectangle
     );
   }
 

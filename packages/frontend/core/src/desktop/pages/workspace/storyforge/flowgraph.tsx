@@ -181,11 +181,23 @@ export const FlowGraphPage = () => {
         }, 30);
     };
     flowDoc.on('afterTransaction', onTx);
+    // Anything that arrived while the canvas was being built is taken in on the first tick.
+    remotePending.current = true;
+    const down = () => editor.setPointerDown(true);
+    const up = () => editor.setPointerDown(false);
+    window.addEventListener('pointerdown', down, true);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
+    window.addEventListener('blur', up);
     const timer = setInterval(tick, 250);
     return () => {
       flowDoc.off('afterTransaction', onTx);
       clearInterval(timer);
       if (soon) clearTimeout(soon);
+      window.removeEventListener('pointerdown', down, true);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
+      window.removeEventListener('blur', up);
     };
   }, [editor, flowDoc, mounted]);
 
