@@ -2,16 +2,16 @@
 // db$sf.playscript.<guid>) through the workspace's normal doc engine. nbstore maps the local id
 // `db$<name>` to the server id `db$<workspaceId>$<name>`, the same way AFFiNE's own db$folders works.
 import type { Workspace } from '@affine/core/modules/workspace';
+import {
+  createSchema,
+  parseRules,
+  type PlayscriptIndexEntry,
+  type RowWithId,
+  type Rules,
+} from '@nineday/storyforge-cloud/layout';
 import { useEffect, useMemo, useState } from 'react';
 import { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
-
-import { parseRules, type Rules } from './shared/rules';
-import {
-  createSchema,
-  type PlayscriptIndexEntry,
-  type RowWithId,
-} from './shared/schema';
 
 export const sfSchema = createSchema(Y);
 

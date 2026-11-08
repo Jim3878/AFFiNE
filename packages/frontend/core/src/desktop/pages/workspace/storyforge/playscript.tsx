@@ -11,16 +11,14 @@ import {
   useSfProject,
   useSfRules,
 } from '@affine/core/modules/storyforge/docs';
+import { WorkspaceService } from '@affine/core/modules/workspace';
 import {
   checkRows,
-  type RowIssue,
-} from '@affine/core/modules/storyforge/shared/rules';
-import {
   COLUMN_KEYS,
   type ColumnKey,
   COLUMNS,
-} from '@affine/core/modules/storyforge/shared/schema';
-import { WorkspaceService } from '@affine/core/modules/workspace';
+  type RowIssue,
+} from '@nineday/storyforge-cloud/layout';
 import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';

@@ -404,6 +404,7 @@ __metadata:
     "@myriaddreamin/typst-ts-renderer": "npm:^0.7.0-rc2"
     "@myriaddreamin/typst-ts-web-compiler": "npm:^0.7.0-rc2"
     "@myriaddreamin/typst.ts": "npm:^0.7.0-rc2"
+    "@nineday/storyforge-cloud": "npm:1.1.0"
     "@playwright/test": "npm:=1.58.2"
     "@preact/signals-core": "npm:^1.8.0"
     "@radix-ui/react-collapsible": "npm:^1.1.2"
@@ -9196,6 +9197,18 @@ __metadata:
     "@nestjs/platform-socket.io":
       optional: true
   checksum: 10/f94d5950b17fbf11d696d5c38681d92c943f77b52b2e3efc3721554a86479a5cdf92a1ecc29f01c793c3d60ac38330945c3cfe0160f32655da9f87e5e5d39e40
+  languageName: node
+  linkType: hard
+
+"@nineday/storyforge-cloud@npm:1.1.0":
+  version: 1.1.0
+  resolution: "@nineday/storyforge-cloud@npm:1.1.0"
+  peerDependencies:
+    yjs: ^13.6.0
+  peerDependenciesMeta:
+    yjs:
+      optional: true
+  checksum: 10/64a05a46f280ef1bc28b5ee9a4706f14279c7fbf2abcdb3c0ecf7d020199e99cfcd58d1c9e34debcb9470b5e407975e1056d98e6dd4655ff7e5f395a7424c9c1
   languageName: node
   linkType: hard
 

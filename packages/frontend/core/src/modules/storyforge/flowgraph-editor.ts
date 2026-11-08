@@ -4,17 +4,16 @@
 // same callbacks the canvas makes (FlowGraphPanel's [JSInvokable] methods) and turns 存檔 into the same
 // diff (ApplyExportDiff) — except the result is written to Yjs as changes relative to what this editor
 // loaded, so other people's saves in between are kept.
-import * as Y from 'yjs';
-
-import { SF_ASSETS_VERSION } from './shared/assets-version';
 import {
   type CanonicalEdge,
   type CanonicalGraph,
   type CanonicalGroup,
   type CanonicalNode,
   createFlowGraph,
-} from './shared/flowgraph';
-import { createSchema } from './shared/schema';
+  createSchema,
+  SF_ASSETS_VERSION,
+} from '@nineday/storyforge-cloud/layout';
+import * as Y from 'yjs';
 
 export const sfFlow = createFlowGraph(Y);
 const sfTables = createSchema(Y);

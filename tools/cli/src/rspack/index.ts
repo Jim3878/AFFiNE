@@ -328,6 +328,17 @@ export function createHTMLTargetConfig(
               // copy the shared public assets into dist
               from: new Package('@affine/core').join('public').value,
             },
+            {
+              // NineDay: StoryForge's flow graph canvas (graph-editor.js on LiteGraph), shipped inside
+              // @nineday/storyforge-cloud and loaded by /storyforge/flowgraph as /sf-assets/<file>?v=<hash>.
+              from: path.join(
+                path.dirname(
+                  require.resolve('@nineday/storyforge-cloud/package.json')
+                ),
+                'assets'
+              ),
+              to: 'sf-assets',
+            },
           ],
         }),
       createSentryPlugin(),

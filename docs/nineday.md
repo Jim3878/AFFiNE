@@ -244,15 +244,19 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   - Docs live outside BlockSuite as workspace db docs: local id `db$sf.project` / `db$sf.rules` /
     `db$sf.playscript.<node guid>` (nbstore maps them to `db$<workspaceId>$…` on the server, like
     `db$folders`), opened through `workspace.engine.doc.connectDoc` (`modules/storyforge/docs.ts`).
-  - The data layout (`modules/storyforge/shared/`) is generated from the StoryForge repo
-    (`cloud/scripts/copy-schema-to-affine.mjs`); the same code is used by the affine-mcp StoryForge
-    extension and local StoryForge, so edit it there, not here.
+  - The data layout comes from the npm package `@nineday/storyforge-cloud` (its `./layout` entry:
+    schema, rules, flow graph, `SF_ASSETS_VERSION`), built from `cloud/` in the StoryForge repo and
+    also used by the affine-mcp StoryForge extension and local StoryForge. Edit it there; here only
+    bump the exact version in `core/package.json` (and `.yarnrc.yml` preapproves `@nineday/*` so a
+    version published minutes ago installs despite yarn's 24 h quarantine). Before `nineday.39` the
+    files were copied in by a script and had drifted.
   - Pages `/storyforge` (list by chapter) and `/storyforge/:guid` (table: fixed 7 columns, one Y.Text
     per cell, IME-safe editing, others' focused cells via awareness, closed-list checks from the rules
     doc, undo/redo of own edits only). Sidebar entry only when the workspace has `db$sf.project`.
-  - `/storyforge/flowgraph`: the project's flow graph (`db$sf.flowgraph.main`, layout in `shared/flowgraph.ts`)
-    on StoryForge's own canvas (`graph-editor.js` + LiteGraph, copied into `core/public/sf-assets/` by the
-    StoryForge repo and loaded as plain scripts). `modules/storyforge/flowgraph-editor.ts` stands in for
+  - `/storyforge/flowgraph`: the project's flow graph (`db$sf.flowgraph.main`, layout in the package's
+    `flowgraph.ts`) on StoryForge's own canvas (`graph-editor.js` + LiteGraph, shipped in the package's
+    `assets/`, copied to `dist/sf-assets/` by the rspack config and loaded as plain scripts with
+    `?v=<SF_ASSETS_VERSION>`). `modules/storyforge/flowgraph-editor.ts` stands in for
     StoryForge's server side: builds the canvas payload, answers its callbacks, and turns 存檔 into per-field
     Yjs changes relative to what was loaded (others' saves in between survive). New 劇本 nodes get a table
     and an index entry; Memos are Y.Texts edited live. Another person's save reloads the canvas unless there
