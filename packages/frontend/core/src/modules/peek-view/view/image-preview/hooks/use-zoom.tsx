@@ -1,218 +1,198 @@
 import type { MouseEvent as ReactMouseEvent, RefObject } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface UseZoomControlsProps {
-  zoomRef: RefObject<HTMLDivElement | null>;
   imageRef: RefObject<HTMLImageElement | null>;
 }
 
-export const useZoomControls = ({
-  zoomRef,
-  imageRef,
-}: UseZoomControlsProps) => {
+interface Point {
+  x: number;
+  y: number;
+}
+
+// nineday: wheel zoom goes up to 500% and follows the pointer, the image can
+// be dragged at any scale, and a click that did not drag is reported so the
+// caller can close the preview.
+const MIN_SCALE = 0.2;
+const MAX_SCALE = 5;
+const BUTTON_STEP = 0.1;
+// one mouse wheel notch (deltaY 100) is about 16%
+const WHEEL_SENSITIVITY = 0.0015;
+const MAX_WHEEL_DELTA = 100;
+// pointer travel, in px, below which a press still counts as a click
+const CLICK_TOLERANCE = 4;
+
+export const useZoomControls = ({ imageRef }: UseZoomControlsProps) => {
   const [currentScale, setCurrentScale] = useState<number>(1);
   const [isZoomedBigger, setIsZoomedBigger] = useState<boolean>(false);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [mouseX, setMouseX] = useState<number>(0);
-  const [mouseY, setMouseY] = useState<number>(0);
-  const [dragBeforeX, setDragBeforeX] = useState<number>(0);
-  const [dragBeforeY, setDragBeforeY] = useState<number>(0);
-  const [imagePos, setImagePos] = useState<{ x: number; y: number }>({
-    x: 0,
-    y: 0,
-  });
 
-  const handleDragStart = useCallback(
-    (event: ReactMouseEvent) => {
-      event?.preventDefault();
-      setIsDragging(true);
-      const image = imageRef.current;
-      if (image && isZoomedBigger) {
-        image.style.cursor = 'grab';
-        const rect = image.getBoundingClientRect();
-        setDragBeforeX(rect.left);
-        setDragBeforeY(rect.top);
-        setMouseX(event.clientX);
-        setMouseY(event.clientY);
-      }
-    },
-    [imageRef, isZoomedBigger]
-  );
-
-  const handleDrag = useCallback(
-    (event: ReactMouseEvent) => {
-      event?.preventDefault();
-      const image = imageRef.current;
-
-      if (isDragging && image && isZoomedBigger) {
-        image.style.cursor = 'grabbing';
-        const currentX = imagePos.x;
-        const currentY = imagePos.y;
-        const newPosX = currentX + event.clientX - mouseX;
-        const newPosY = currentY + event.clientY - mouseY;
-        image.style.transform = `translate(${newPosX}px, ${newPosY}px)`;
-      }
-    },
-    [
-      imagePos.x,
-      imagePos.y,
-      imageRef,
-      isDragging,
-      isZoomedBigger,
-      mouseX,
-      mouseY,
-    ]
-  );
-
-  const dragEndImpl = useCallback(() => {
-    setIsDragging(false);
-
-    const image = imageRef.current;
-    if (image && isZoomedBigger && isDragging) {
-      image.style.cursor = 'pointer';
-      const rect = image.getBoundingClientRect();
-      const newPos = { x: rect.left, y: rect.top };
-      const currentX = imagePos.x;
-      const currentY = imagePos.y;
-      const newPosX = currentX + newPos.x - dragBeforeX;
-      const newPosY = currentY + newPos.y - dragBeforeY;
-      setImagePos({ x: newPosX, y: newPosY });
-    }
-  }, [
-    dragBeforeX,
-    dragBeforeY,
-    imagePos.x,
-    imagePos.y,
-    imageRef,
-    isDragging,
-    isZoomedBigger,
-  ]);
-
-  const handleDragEnd = useCallback(
-    (event: ReactMouseEvent) => {
-      event.preventDefault();
-      dragEndImpl();
-    },
-    [dragEndImpl]
-  );
-
-  const handleMouseUp = useCallback(
-    (evt: MouseEvent) => {
-      evt.preventDefault();
-      if (isDragging) {
-        dragEndImpl();
-      }
-    },
-    [isDragging, dragEndImpl]
-  );
+  const scaleRef = useRef(1);
+  const posRef = useRef<Point>({ x: 0, y: 0 });
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+  const draggedRef = useRef(false);
 
   const checkZoomSize = useCallback(() => {
-    const { current: zoomArea } = zoomRef;
-    if (zoomArea) {
-      const image = zoomArea.querySelector('img');
-      if (image) {
-        const zoomedWidth = image.naturalWidth * currentScale;
-        const zoomedHeight = image.naturalHeight * currentScale;
-        const containerWidth = window.innerWidth;
-        const containerHeight = window.innerHeight;
-        setIsZoomedBigger(
-          zoomedWidth > containerWidth || zoomedHeight > containerHeight
-        );
+    const image = imageRef.current;
+    if (!image) return;
+    setIsZoomedBigger(
+      image.naturalWidth * scaleRef.current > window.innerWidth ||
+        image.naturalHeight * scaleRef.current > window.innerHeight
+    );
+  }, [imageRef]);
+
+  const applyPosition = useCallback(
+    (pos: Point) => {
+      const image = imageRef.current;
+      if (!image) return;
+      posRef.current = pos;
+      image.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+    },
+    [imageRef]
+  );
+
+  const applyScale = useCallback(
+    (scale: number, pos: Point) => {
+      const image = imageRef.current;
+      if (!image) return;
+      scaleRef.current = scale;
+      image.style.width = `${image.naturalWidth * scale}px`;
+      image.style.height = `${image.naturalHeight * scale}px`;
+      applyPosition(pos);
+      setCurrentScale(scale);
+      checkZoomSize();
+    },
+    [imageRef, applyPosition, checkZoomSize]
+  );
+
+  /**
+   * @param anchor viewport point that should stay where it is. Without it the
+   * image is scaled around its own center.
+   */
+  const zoomTo = useCallback(
+    (target: number, anchor?: Point) => {
+      const image = imageRef.current;
+      if (!image) return;
+
+      const prev = scaleRef.current;
+      const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, target));
+      // "fit to screen" can leave the scale outside the range, never clamp
+      // against the direction the user asked for
+      if (target > prev ? next <= prev : next >= prev) return;
+
+      let pos = posRef.current;
+      if (anchor) {
+        const rect = image.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const ratio = next / prev;
+        pos = {
+          x: pos.x + (anchor.x - centerX) * (1 - ratio),
+          y: pos.y + (anchor.y - centerY) * (1 - ratio),
+        };
       }
-    }
-  }, [currentScale, zoomRef]);
+      applyScale(next, pos);
+    },
+    [imageRef, applyScale]
+  );
 
   const zoomIn = useCallback(() => {
-    const image = imageRef.current;
-
-    if (image && currentScale < 2) {
-      const newScale = currentScale + 0.1;
-      setCurrentScale(newScale);
-      image.style.width = `${image.naturalWidth * newScale}px`;
-      image.style.height = `${image.naturalHeight * newScale}px`;
-    }
-  }, [imageRef, currentScale]);
+    zoomTo(scaleRef.current + BUTTON_STEP);
+  }, [zoomTo]);
 
   const zoomOut = useCallback(() => {
-    const image = imageRef.current;
-    if (image && currentScale > 0.2) {
-      const newScale = currentScale - 0.1;
-      setCurrentScale(newScale);
-      image.style.width = `${image.naturalWidth * newScale}px`;
-      image.style.height = `${image.naturalHeight * newScale}px`;
-      const zoomedWidth = image.naturalWidth * newScale;
-      const zoomedHeight = image.naturalHeight * newScale;
-      const containerWidth = window.innerWidth;
-      const containerHeight = window.innerHeight;
-      if (zoomedWidth > containerWidth || zoomedHeight > containerHeight) {
-        image.style.transform = `translate(0px, 0px)`;
-        setImagePos({ x: 0, y: 0 });
-      }
-    }
-  }, [imageRef, currentScale]);
+    zoomTo(scaleRef.current - BUTTON_STEP);
+  }, [zoomTo]);
 
   const resetZoom = useCallback(() => {
     const image = imageRef.current;
-    if (image) {
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const margin = 0.2;
+    if (!image) return;
 
-      const availableWidth = viewportWidth * (1 - margin);
-      const availableHeight = viewportHeight * (1 - margin);
-
-      const widthRatio = availableWidth / image.naturalWidth;
-      const heightRatio = availableHeight / image.naturalHeight;
-
-      const newScale = Math.min(widthRatio, heightRatio);
-      setCurrentScale(newScale);
-      image.style.width = `${image.naturalWidth * newScale}px`;
-      image.style.height = `${image.naturalHeight * newScale}px`;
-      image.style.transform = 'translate(0px, 0px)';
-      setImagePos({ x: 0, y: 0 });
-      checkZoomSize();
-    }
-  }, [imageRef, checkZoomSize]);
+    const margin = 0.2;
+    const availableWidth = window.innerWidth * (1 - margin);
+    const availableHeight = window.innerHeight * (1 - margin);
+    const newScale = Math.min(
+      availableWidth / image.naturalWidth,
+      availableHeight / image.naturalHeight
+    );
+    applyScale(newScale, { x: 0, y: 0 });
+  }, [imageRef, applyScale]);
 
   const resetScale = useCallback(() => {
-    const image = imageRef.current;
-    if (image) {
-      setCurrentScale(1);
-      image.style.width = `${image.naturalWidth}px`;
-      image.style.height = `${image.naturalHeight}px`;
-      image.style.transform = 'translate(0px, 0px)';
-      setImagePos({ x: 0, y: 0 });
-    }
-  }, [imageRef]);
+    applyScale(1, { x: 0, y: 0 });
+  }, [applyScale]);
+
+  const handleDragStart = useCallback((event: ReactMouseEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    draggedRef.current = false;
+    dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: posRef.current.x,
+      originY: posRef.current.y,
+    };
+  }, []);
+
+  /**
+   * Whether the click that just fired on the image was a plain click, not the
+   * end of a drag.
+   */
+  const isPlainClick = useCallback(() => !draggedRef.current, []);
 
   useEffect(() => {
-    const handleScroll = (event: WheelEvent) => {
+    const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
-      const { deltaY } = event;
-      if (deltaY > 0) {
-        zoomOut();
-      } else if (deltaY < 0 && currentScale < 2) {
-        zoomIn();
-      }
+      const delta = Math.min(
+        MAX_WHEEL_DELTA,
+        Math.max(-MAX_WHEEL_DELTA, event.deltaY)
+      );
+      if (delta === 0) return;
+      zoomTo(scaleRef.current * Math.exp(-delta * WHEEL_SENSITIVITY), {
+        x: event.clientX,
+        y: event.clientY,
+      });
     };
 
-    const handleResize = (event: UIEvent) => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
+      if (!draggedRef.current) {
+        if (Math.hypot(dx, dy) <= CLICK_TOLERANCE) return;
+        draggedRef.current = true;
+        if (imageRef.current) imageRef.current.style.cursor = 'grabbing';
+      }
       event.preventDefault();
-      checkZoomSize();
+      applyPosition({ x: drag.originX + dx, y: drag.originY + dy });
+    };
+
+    const handleMouseUp = () => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      if (imageRef.current) imageRef.current.style.cursor = 'grab';
     };
 
     checkZoomSize();
 
-    window.addEventListener('wheel', handleScroll, { passive: false });
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('resize', checkZoomSize);
+    window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
 
     return () => {
-      window.removeEventListener('wheel', handleScroll);
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('resize', checkZoomSize);
+      window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [zoomIn, zoomOut, checkZoomSize, handleMouseUp, currentScale]);
+  }, [imageRef, zoomTo, applyPosition, checkZoomSize]);
 
   return {
     zoomIn,
@@ -222,7 +202,6 @@ export const useZoomControls = ({
     isZoomedBigger,
     currentScale,
     handleDragStart,
-    handleDrag,
-    handleDragEnd,
+    isPlainClick,
   };
 };

@@ -1,3 +1,4 @@
+import { isPeekable, peek } from '@blocksuite/affine-components/peek';
 import type { ResolvedStateInfo } from '@blocksuite/affine-components/resource';
 import {
   focusBlockEnd,
@@ -6,8 +7,10 @@ import {
   getPrevBlockCommand,
 } from '@blocksuite/affine-shared/commands';
 import { ImageSelection } from '@blocksuite/affine-shared/selection';
-import { unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
+import { unsafeCSSVar, unsafeCSSVarV2 } from '@blocksuite/affine-shared/theme';
+import { isInsideEdgelessEditor } from '@blocksuite/affine-shared/utils';
 import { SignalWatcher, WithDisposable } from '@blocksuite/global/lit';
+import { ZoomUpIcon } from '@blocksuite/icons/lit';
 import type { BlockComponent, UIEventStateContext } from '@blocksuite/std';
 import {
   BlockSelection,
@@ -76,6 +79,36 @@ export class ImageBlockPageComponent extends SignalWatcher(
     affine-page-image .resizable-img img {
       width: 100%;
       height: 100%;
+    }
+
+    /* nineday: magnifier button, on the corner opposite the inner toolbar */
+    affine-page-image .image-zoom-button {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      z-index: 1;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      font-size: 20px;
+      line-height: 0;
+      cursor: pointer;
+      color: ${unsafeCSSVarV2('text/primary')};
+      background: ${unsafeCSSVar('white')};
+      box-shadow: ${unsafeCSSVar('buttonShadow')};
+    }
+
+    affine-page-image .resizable-img:hover .image-zoom-button {
+      display: flex;
+    }
+
+    affine-page-image .image-zoom-button:hover {
+      background: ${unsafeCSSVar('hoverColorFilled')};
     }
 
     affine-page-image .comment-highlighted {
@@ -221,6 +254,21 @@ export class ImageBlockPageComponent extends SignalWatcher(
       },
     });
   }
+
+  private get _zoomable() {
+    return isPeekable(this.block) && !isInsideEdgelessEditor(this._host);
+  }
+
+  private readonly _openPreview = (event: MouseEvent) => {
+    // keep the click from selecting the image or reaching the editor
+    event.preventDefault();
+    event.stopPropagation();
+    peek(this.block);
+  };
+
+  private readonly _swallowEvent = (event: Event) => {
+    event.stopPropagation();
+  };
 
   private _handleError() {
     this.block.resourceController.updateState({
@@ -386,6 +434,23 @@ export class ImageBlockPageComponent extends SignalWatcher(
         />
 
         ${imageSelectedRect}
+        ${when(
+          !loading && !error && this._zoomable,
+          () =>
+            html`<button
+              class="image-zoom-button"
+              type="button"
+              data-testid="image-zoom-button"
+              aria-label="Zoom image"
+              title="Zoom image"
+              @click=${this._openPreview}
+              @dblclick=${this._swallowEvent}
+              @pointerdown=${this._swallowEvent}
+              @mousedown=${this._swallowEvent}
+            >
+              ${ZoomUpIcon()}
+            </button>`
+        )}
       </div>
 
       ${when(loading, () => html`<div class="loading">${icon}</div>`)}

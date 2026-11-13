@@ -86,19 +86,22 @@ export const GenericImagePreviewModal = ({
   onClose,
   blobId,
 }: ImagePreviewProps): ReactElement => {
-  const zoomRef = useRef<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const {
     isZoomedBigger,
-    handleDrag,
     handleDragStart,
-    handleDragEnd,
+    isPlainClick,
     resetZoom,
     zoomIn,
     zoomOut,
     resetScale,
     currentScale,
-  } = useZoomControls({ zoomRef, imageRef });
+  } = useZoomControls({ imageRef });
+
+  // nineday: a click on the image closes the preview, a drag moves the image
+  const handleImageClick = useCallback(() => {
+    if (isPlainClick()) onClose();
+  }, [isPlainClick, onClose]);
 
   const downloadHandler = useAsyncCallback(async () => {
     if (!image.url) return;
@@ -145,10 +148,7 @@ export const GenericImagePreviewModal = ({
     >
       <div className={styles.imagePreviewTrap} onClick={onClose} />
       <div className={styles.imagePreviewModalContainerStyle}>
-        <div
-          className={clsx('zoom-area', { 'zoomed-bigger': isZoomedBigger })}
-          ref={zoomRef}
-        >
+        <div className={clsx('zoom-area', { 'zoomed-bigger': isZoomedBigger })}>
           <div className={styles.imagePreviewModalCenterStyle}>
             <GenericImagePreview
               data-blob-id={blobId}
@@ -157,10 +157,10 @@ export const GenericImagePreviewModal = ({
               data-testid="image-content"
               tabIndex={0}
               ref={imageRef}
-              draggable={isZoomedBigger}
+              draggable={false}
+              style={{ cursor: 'grab' }}
               onMouseDown={handleDragStart}
-              onMouseMove={handleDrag}
-              onMouseUp={handleDragEnd}
+              onClick={handleImageClick}
               onLoad={resetZoom}
             />
             {isZoomedBigger ? null : (

@@ -182,6 +182,13 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   is half the distance to its neighbouring point, at least 100 (`curveEndHandleLength`; upstream
   a third of that distance along the normal, mostly 100). Unit tests:
   `gfx/connector/src/__tests__/curve-end-handle.unit.spec.ts`.
+- **Image zoom** (`nineday.40`, `blocks/image/src/components/page-image-block.ts`,
+  `core/src/modules/peek-view/view/image-preview/`): images in page mode show a magnifier button on
+  hover (top left, opposite the inner toolbar; not in edgeless, not on mobile) that opens the
+  existing image preview, same as double-click / Shift+click. In the preview (`hooks/use-zoom.tsx`,
+  also used for AI chat and database file images): the wheel zooms around the pointer, 20%–500%
+  (was 200%, around the center); the image can be dragged at any scale (was only when larger than
+  the window); a click on the image that did not drag closes the preview.
 - **Connector line style button** (`nineday.29`, `gfx/connector/src/toolbar/config.ts`): the line
   width slider and solid/dash/none were inside the stroke color panel; they are now their own
   toolbar button (`a.stroke-line`, `LineStyleIcon` + chevron, like the note's "Border style"),
