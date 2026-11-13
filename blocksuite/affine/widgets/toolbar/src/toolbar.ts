@@ -115,6 +115,12 @@ export class AffineToolbarWidget extends WidgetComponent {
       justify-content: flex-end;
       box-sizing: border-box;
       gap: 4px;
+      /* nineday: the bar is as wide as the block, only its buttons take clicks */
+      pointer-events: none;
+
+      > * {
+        pointer-events: auto;
+      }
 
       .inner-button,
       editor-icon-button,

@@ -1,5 +1,11 @@
 import type { MouseEvent as ReactMouseEvent, RefObject } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 
 interface UseZoomControlsProps {
   imageRef: RefObject<HTMLImageElement | null>;
@@ -35,6 +41,8 @@ export const useZoomControls = ({ imageRef }: UseZoomControlsProps) => {
     originY: number;
   } | null>(null);
   const draggedRef = useRef(false);
+  // where the image center was right after a pointer-anchored zoom
+  const anchoredCenterRef = useRef<Point | null>(null);
 
   const checkZoomSize = useCallback(() => {
     const image = imageRef.current;
@@ -96,9 +104,33 @@ export const useZoomControls = ({ imageRef }: UseZoomControlsProps) => {
         };
       }
       applyScale(next, pos);
+
+      if (anchor) {
+        const rect = image.getBoundingClientRect();
+        anchoredCenterRef.current = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+      }
     },
     [imageRef, applyScale]
   );
+
+  // Crossing the window size moves the caption out of the centered column,
+  // which shifts the image. Put it back so the point under the pointer stays.
+  useLayoutEffect(() => {
+    const image = imageRef.current;
+    const center = anchoredCenterRef.current;
+    anchoredCenterRef.current = null;
+    if (!image || !center) return;
+
+    const rect = image.getBoundingClientRect();
+    const dx = center.x - (rect.left + rect.width / 2);
+    const dy = center.y - (rect.top + rect.height / 2);
+    if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+      applyPosition({ x: posRef.current.x + dx, y: posRef.current.y + dy });
+    }
+  }, [currentScale, isZoomedBigger, imageRef, applyPosition]);
 
   const zoomIn = useCallback(() => {
     zoomTo(scaleRef.current + BUTTON_STEP);
