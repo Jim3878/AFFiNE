@@ -3326,6 +3326,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.page-properties.property.createdBy"](): string;
     /**
+      * `Member`
+      */
+    ["com.affine.page-properties.property.member"](): string;
+    /**
       * `Date`
       */
     ["com.affine.page-properties.property.date"](): string;
@@ -3457,6 +3461,10 @@ export function useAFFiNEI18N(): {
       * `Displays the author of the current doc. Useful for tracking doc ownership, accountability, and collaboration.`
       */
     ["com.affine.page-properties.property.createdBy.tooltips"](): string;
+    /**
+      * `Assign workspace members to the current doc. Useful for owners, assignees and reviewers.`
+      */
+    ["com.affine.page-properties.property.member.tooltips"](): string;
     /**
       * `Displays the last editor of the current doc. Useful for tracking recent changes.`
       */

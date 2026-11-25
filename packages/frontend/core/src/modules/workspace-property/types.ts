@@ -42,6 +42,8 @@ export type WorkspacePropertyTypes = {
   edgelessTheme: { filter: 'is' | 'is-not' };
   pageWidth: { filter: 'is' | 'is-not' };
   template: { filter: 'is' | 'is-not' };
+  // NineDay: assignable members, no filter yet
+  member: { filter: never };
   unknown: { filter: never };
 };
 export type WorkspacePropertyType = keyof WorkspacePropertyTypes;

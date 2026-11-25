@@ -70,6 +70,7 @@ import {
   JournalGroupHeader,
   JournalValue,
 } from './journal';
+import { MemberValue } from './member';
 import {
   NumberDocListProperty,
   NumberFilterValue,
@@ -215,6 +216,13 @@ export const WorkspacePropertyTypes = {
     showInDocList: 'stack',
     docListProperty: DateDocListProperty,
     groupHeader: DateGroupHeader,
+  },
+  // NineDay: assignable members. Filter, group-by and doc-list display are not wired yet.
+  member: {
+    icon: MemberIcon,
+    value: MemberValue,
+    name: 'com.affine.page-properties.property.member',
+    description: 'com.affine.page-properties.property.member.tooltips',
   },
   createdBy: {
     icon: MemberIcon,

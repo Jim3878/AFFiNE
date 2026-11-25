@@ -125,6 +125,14 @@ BUILD_TYPE=stable yarn affine @affine/web build      # ~30 s
   viewer's default when unset, so once clicked a page could never follow the default again. A
   third option, Default (i18n `com.affine.page-properties.property.pageWidth.default`), clears
   the stored value (writes `null`; the doc db skips `undefined`).
+- **Member doc property** (not yet released, `core/src/components/workspace-property-types/member.tsx`):
+  a new workspace property type `member` ("Member" / 「成員」) in a doc's Info, next to the read-only
+  Created by. It reuses `MemberSelectorInline` (multi-select, search) and stores the selected user
+  ids comma separated in `custom:<propertyId>`, the same encoding as the createdBy filter value.
+  Cloud workspaces only. No filter, group-by, order-by or doc-list display yet (the type registers
+  none, so the menus skip it); no notification is sent. Stock AFFiNE clients show the property as
+  an unknown type and keep the value. affine-mcp-server reads and writes it through
+  `create_custom_property` / `set_doc_property` (type `member`) and `list_workspace_members`.
 - **Embedded doc title size on canvas** (`nineday.15`): a synced doc on the edgeless canvas shows
   its title in a small secondary header. Its toolbar now has a "Title size" menu next to the
   scale menu (Auto, 16–128, or a typed size 8–200), stored on the block as `titleFontSize`
